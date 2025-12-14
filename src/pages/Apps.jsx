@@ -2,14 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../supabase/supabase';
-import { createApp } from '../services/appService';
+import { createApp, importAppFromJSON } from '../services/appService';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
-const { 
+const {
   FiPlus, FiSearch, FiFilter, FiMoreVertical, FiExternalLink, 
-  FiGithub, FiGlobe, FiDollarSign, FiUsers, FiTrendingUp, 
-  FiEdit3, FiLoader
+  FiGithub, FiGlobe, FiDollarSign, FiUsers, FiTrendingUp, FiEdit3, FiLoader, FiUpload
 } = FiIcons;
 
 const Apps = () => {
@@ -19,6 +18,7 @@ const Apps = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     fetchApps();
@@ -48,7 +48,6 @@ const Apps = () => {
     try {
       setCreating(true);
       const { data: { user } } = await supabase.auth.getUser();
-      
       if (!user) {
         console.error('No authenticated user found');
         return;
@@ -67,7 +66,7 @@ const Apps = () => {
       };
 
       const { data, error } = await createApp(newApp, user.id);
-
+      
       if (error) {
         console.error('Error creating app:', error);
         setError('Failed to create app');
@@ -82,6 +81,44 @@ const Apps = () => {
       setError('Failed to create app');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const json = JSON.parse(e.target.result);
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (!user) throw new Error('Not authenticated');
+
+          const { data, error } = await importAppFromJSON(json, user.id);
+          
+          if (error) throw error;
+          
+          if (data) {
+            setApps([data, ...apps]);
+            alert('Project imported successfully!');
+          }
+        } catch (err) {
+          console.error('Import failed:', err);
+          alert('Failed to import project. Please check the file format.');
+        } finally {
+          setImporting(false);
+          // Reset file input
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    } catch (err) {
+      console.error('File reading failed:', err);
+      setImporting(false);
     }
   };
 
@@ -137,8 +174,23 @@ const Apps = () => {
           <h1 className="text-2xl font-bold text-gray-900">My Apps</h1>
           <p className="text-gray-600 mt-1">Manage and monitor your SaaS applications</p>
         </div>
-        <div className="mt-4 sm:mt-0">
-          <button
+        <div className="mt-4 sm:mt-0 flex items-center space-x-3">
+          <label className={`cursor-pointer bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center space-x-2 ${importing ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            {importing ? (
+              <SafeIcon icon={FiLoader} className="w-4 h-4 animate-spin" />
+            ) : (
+              <SafeIcon icon={FiUpload} className="w-4 h-4" />
+            )}
+            <span>Import JSON</span>
+            <input 
+              type="file" 
+              accept=".json" 
+              className="hidden" 
+              onChange={handleFileUpload}
+              disabled={importing}
+            />
+          </label>
+          <button 
             onClick={handleAddApp}
             disabled={creating}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center space-x-2 disabled:opacity-70 disabled:cursor-not-allowed"
@@ -197,11 +249,10 @@ const Apps = () => {
                   </span>
                 </div>
                 <p className="text-gray-600 text-sm mb-3">{app.description}</p>
-                
                 {/* Tech Stack */}
                 <div className="flex flex-wrap gap-2 mb-4">
                   {app.tech_stack && app.tech_stack.map((tech, index) => (
-                    <span
+                    <span 
                       key={index}
                       className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-md font-medium"
                     >
@@ -247,7 +298,7 @@ const Apps = () => {
             {/* Quick Links */}
             <div className="flex items-center space-x-3 mb-4">
               {app.repository && (
-                <a
+                <a 
                   href={app.repository}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -258,7 +309,7 @@ const Apps = () => {
                 </a>
               )}
               {app.domain && (
-                <a
+                <a 
                   href={`https://${app.domain}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -299,7 +350,7 @@ const Apps = () => {
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No apps found</h3>
           <p className="text-gray-600 mb-6">Try adjusting your search or filter criteria</p>
-          <button
+          <button 
             onClick={handleAddApp}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >

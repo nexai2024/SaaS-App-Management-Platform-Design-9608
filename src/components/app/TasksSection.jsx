@@ -13,6 +13,7 @@ const {
 const TasksSection = ({ appId }) => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showAddTask, setShowAddTask] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,6 +42,7 @@ const TasksSection = ({ appId }) => {
   const fetchTasks = async () => {
     try {
       setLoading(true);
+      setError(null);
       const { data, error } = await supabase
         .from('app_tasks')
         .select('*, assignee:profiles(*)')
@@ -52,6 +54,7 @@ const TasksSection = ({ appId }) => {
       setTasks(data || []);
     } catch (error) {
       console.error('Error fetching tasks:', error);
+      setError('Failed to load tasks. Please try refreshing the page.');
     } finally {
       setLoading(false);
     }
@@ -70,6 +73,7 @@ const TasksSection = ({ appId }) => {
 
   const handleSaveTask = async () => {
     try {
+      setError(null);
       const taskData = {
         ...newTask,
         app_id: appId,
@@ -109,29 +113,37 @@ const TasksSection = ({ appId }) => {
       });
     } catch (error) {
       console.error('Error saving task:', error);
+      setError(error.message || 'Failed to save task. Please try again.');
     }
   };
 
   const handleDeleteTask = async (taskId) => {
     if (confirm('Are you sure you want to delete this task?')) {
       try {
-        await supabase.from('app_tasks').delete().eq('id', taskId);
+        setError(null);
+        const { error } = await supabase.from('app_tasks').delete().eq('id', taskId);
+        if (error) throw error;
         fetchTasks();
       } catch (error) {
         console.error('Error deleting task:', error);
+        setError('Failed to delete task.');
       }
     }
   };
 
   const handleStatusChange = async (task, newStatus) => {
     try {
-      await supabase
+      setError(null);
+      const { error } = await supabase
         .from('app_tasks')
         .update({ status: newStatus })
         .eq('id', task.id);
+      
+      if (error) throw error;
       fetchTasks();
     } catch (error) {
       console.error('Error updating task status:', error);
+      setError('Failed to update task status.');
     }
   };
 
@@ -212,6 +224,24 @@ const TasksSection = ({ appId }) => {
 
   return (
     <div className="space-y-6">
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <SafeIcon icon={FiAlertTriangle} className="h-5 w-5 text-red-500 mr-3" />
+              <p className="text-sm text-red-700 font-medium">{error}</p>
+            </div>
+            <button 
+              onClick={() => setError(null)}
+              className="text-red-400 hover:text-red-600 transition-colors"
+            >
+              <SafeIcon icon={FiX} className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -370,7 +400,7 @@ const TasksSection = ({ appId }) => {
         ))}
       </div>
 
-      {filteredTasks.length === 0 && (
+      {filteredTasks.length === 0 && !error && (
         <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <SafeIcon icon={FiTarget} className="w-6 h-6 text-gray-400" />
@@ -402,6 +432,7 @@ const TasksSection = ({ appId }) => {
                 onClick={() => {
                   setShowAddTask(false);
                   setEditingTask(null);
+                  setError(null);
                   setNewTask({
                     title: '',
                     description: '',
@@ -418,6 +449,16 @@ const TasksSection = ({ appId }) => {
                 <SafeIcon icon={FiX} className="w-5 h-5" />
               </button>
             </div>
+            
+            {/* Modal Error Banner */}
+            {error && (
+              <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-4 rounded-r shadow-sm">
+                <div className="flex items-center">
+                  <SafeIcon icon={FiAlertTriangle} className="h-4 w-4 text-red-500 mr-2" />
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-4">
               <div>
@@ -558,6 +599,7 @@ const TasksSection = ({ appId }) => {
                 onClick={() => {
                   setShowAddTask(false);
                   setEditingTask(null);
+                  setError(null);
                   setNewTask({
                     title: '',
                     description: '',
