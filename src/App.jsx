@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from './supabase/supabase';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import Dashboard from './pages/Dashboard';
@@ -10,17 +11,77 @@ import Analytics from './pages/Analytics';
 import Team from './pages/Team';
 import Settings from './pages/Settings';
 import Onboarding from './pages/Onboarding';
+import Login from './pages/Login';
+import * as FiIcons from 'react-icons/fi';
+import SafeIcon from './common/SafeIcon';
+
+const { FiLoader } = FiIcons;
 
 function App() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentUser] = useState({
-    name: 'Alex Johnson',
-    email: 'alex@example.com',
+  const [userProfile, setUserProfile] = useState({
+    name: 'User',
+    email: '',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
   });
-  const [isOnboarded, setIsOnboarded] = useState(true); // Set to false for onboarding flow
+  const [isOnboarded, setIsOnboarded] = useState(true); 
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) fetchProfile(session.user.id);
+      setLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) fetchProfile(session.user.id);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (data) {
+        setUserProfile({
+          name: data.full_name || 'User',
+          email: session?.user?.email || '',
+          avatar: data.avatar_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
+        });
+      } else {
+        // If no profile exists yet, use defaults
+        setUserProfile(prev => ({ ...prev, email: session?.user?.email }));
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    }
+  };
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <SafeIcon icon={FiLoader} className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Login />;
+  }
 
   if (!isOnboarded) {
     return (
@@ -38,7 +99,7 @@ function App() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header 
             onMenuClick={toggleSidebar} 
-            user={currentUser}
+            user={userProfile}
           />
           
           <main className="flex-1 overflow-auto">

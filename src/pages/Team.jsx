@@ -1,106 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { supabase } from '../supabase/supabase';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
 const { 
   FiPlus, FiSearch, FiMoreVertical, FiMail, FiPhone, FiCalendar,
-  FiEdit3, FiTrash2, FiUserPlus, FiUsers, FiClock, FiCheck, FiX
+  FiEdit3, FiTrash2, FiUserPlus, FiUsers, FiClock, FiCheck, FiX, FiLoader
 } = FiIcons;
 
 const Team = () => {
   const [activeTab, setActiveTab] = useState('members');
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const teamMembers = [
-    {
-      id: 1,
-      name: 'Alex Johnson',
-      email: 'alex@example.com',
-      role: 'Owner',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
-      status: 'Active',
-      joinDate: '2023-01-15',
-      lastActive: '2 minutes ago',
-      projects: ['TaskFlow Pro', 'InvoiceGen'],
-      permissions: ['Admin', 'All Apps']
-    },
-    {
-      id: 2,
-      name: 'Sarah Chen',
-      email: 'sarah@example.com',
-      role: 'Frontend Developer',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
-      status: 'Active',
-      joinDate: '2023-03-20',
-      lastActive: '1 hour ago',
-      projects: ['TaskFlow Pro', 'ChatBot Builder'],
-      permissions: ['Developer', 'Selected Apps']
-    },
-    {
-      id: 3,
-      name: 'Mike Rodriguez',
-      email: 'mike@example.com',
-      role: 'Backend Developer',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-      status: 'Active',
-      joinDate: '2023-02-10',
-      lastActive: '3 hours ago',
-      projects: ['InvoiceGen', 'Analytics Dashboard'],
-      permissions: ['Developer', 'Selected Apps']
-    },
-    {
-      id: 4,
-      name: 'Emma Wilson',
-      email: 'emma@example.com',
-      role: 'Designer',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
-      status: 'Invited',
-      joinDate: '2024-01-10',
-      lastActive: 'Pending',
-      projects: ['ChatBot Builder'],
-      permissions: ['Designer', 'Selected Apps']
-    }
-  ];
+  useEffect(() => {
+    fetchTeamData();
+  }, []);
 
-  const tasks = [
-    {
-      id: 1,
-      title: 'Fix authentication bug',
-      assignee: 'Mike Rodriguez',
-      app: 'TaskFlow Pro',
-      priority: 'high',
-      status: 'in-progress',
-      dueDate: '2024-01-18'
-    },
-    {
-      id: 2,
-      title: 'Design new dashboard layout',
-      assignee: 'Emma Wilson',
-      app: 'Analytics Dashboard',
-      priority: 'medium',
-      status: 'pending',
-      dueDate: '2024-01-20'
-    },
-    {
-      id: 3,
-      title: 'Implement payment integration',
-      assignee: 'Sarah Chen',
-      app: 'InvoiceGen',
-      priority: 'high',
-      status: 'completed',
-      dueDate: '2024-01-15'
-    },
-    {
-      id: 4,
-      title: 'Update API documentation',
-      assignee: 'Alex Johnson',
-      app: 'TaskFlow Pro',
-      priority: 'low',
-      status: 'in-progress',
-      dueDate: '2024-01-25'
+  const fetchTeamData = async () => {
+    try {
+      const { data: members, error: membersError } = await supabase.from('team_members').select('*');
+      if (membersError) throw membersError;
+
+      const { data: tasksData, error: tasksError } = await supabase.from('tasks').select('*');
+      if (tasksError) throw tasksError;
+
+      setTeamMembers(members || []);
+      setTasks(tasksData || []);
+    } catch (error) {
+      console.error('Error fetching team data:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   const getRoleColor = (role) => {
     switch (role) {
@@ -177,24 +112,6 @@ const Team = () => {
             </select>
           </div>
           
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">App Access</label>
-            <div className="space-y-2">
-              <label className="flex items-center">
-                <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                <span className="ml-2 text-sm text-gray-700">TaskFlow Pro</span>
-              </label>
-              <label className="flex items-center">
-                <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                <span className="ml-2 text-sm text-gray-700">InvoiceGen</span>
-              </label>
-              <label className="flex items-center">
-                <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                <span className="ml-2 text-sm text-gray-700">ChatBot Builder</span>
-              </label>
-            </div>
-          </div>
-          
           <div className="flex items-center space-x-3 pt-4">
             <button
               onClick={() => setShowInviteModal(false)}
@@ -261,7 +178,7 @@ const Team = () => {
               <SafeIcon icon={FiUserPlus} className="w-5 h-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">12</p>
+              <p className="text-2xl font-bold text-gray-900">{tasks.length}</p>
               <p className="text-sm text-gray-600">Tasks Assigned</p>
             </div>
           </div>
@@ -301,7 +218,7 @@ const Team = () => {
                   <td className="py-4 px-6">
                     <div className="flex items-center space-x-3">
                       <img
-                        src={member.avatar}
+                        src={member.avatar_url || 'https://via.placeholder.com/150'}
                         alt={member.name}
                         className="w-10 h-10 rounded-full object-cover"
                       />
@@ -323,17 +240,14 @@ const Team = () => {
                   </td>
                   <td className="py-4 px-6">
                     <div className="flex flex-wrap gap-1">
-                      {member.projects.slice(0, 2).map((project, index) => (
+                      {member.projects && member.projects.slice(0, 2).map((project, index) => (
                         <span key={index} className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-md">
                           {project}
                         </span>
                       ))}
-                      {member.projects.length > 2 && (
-                        <span className="text-xs text-gray-500">+{member.projects.length - 2}</span>
-                      )}
                     </div>
                   </td>
-                  <td className="py-4 px-6 text-sm text-gray-600">{member.lastActive}</td>
+                  <td className="py-4 px-6 text-sm text-gray-600">{member.last_active}</td>
                   <td className="py-4 px-6">
                     <div className="flex items-center space-x-2">
                       <button className="text-blue-600 hover:text-blue-700 text-sm">Edit</button>
@@ -342,6 +256,11 @@ const Team = () => {
                   </td>
                 </tr>
               ))}
+              {teamMembers.length === 0 && (
+                <tr>
+                    <td colSpan="6" className="py-8 text-center text-gray-500">No team members found. Invite someone!</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -378,9 +297,9 @@ const Team = () => {
                       </span>
                     </div>
                     <div className="flex items-center space-x-4 text-sm text-gray-600">
-                      <span>Assigned to: {task.assignee}</span>
-                      <span>App: {task.app}</span>
-                      <span>Due: {new Date(task.dueDate).toLocaleDateString()}</span>
+                      <span>Assigned to: {task.assignee_name}</span>
+                      <span>App: {task.app_name}</span>
+                      <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -390,11 +309,16 @@ const Team = () => {
                 </div>
               </div>
             ))}
+             {tasks.length === 0 && (
+                <div className="text-center text-gray-500">No tasks assigned yet.</div>
+              )}
           </div>
         </div>
       </div>
     </div>
   );
+
+  if (loading) return <div className="p-6 flex justify-center"><SafeIcon icon={FiLoader} className="w-8 h-8 animate-spin text-blue-600"/></div>;
 
   return (
     <motion.div
