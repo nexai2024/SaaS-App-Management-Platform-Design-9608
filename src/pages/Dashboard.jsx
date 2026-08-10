@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { supabase } from '../supabase/supabase';
 import { useNavigate } from 'react-router-dom';
+import { dataFetch } from '../api';
 import { createApp } from '../services/appService';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
@@ -23,30 +23,35 @@ const Dashboard = () => {
   ]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const userId = localStorage.getItem('user_id');
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    if (userId) {
+      fetchDashboardData();
+    } else {
+      setLoading(false);
+    }
+  }, [userId]);
 
   const fetchDashboardData = async () => {
     try {
-      const { data: apps, error } = await supabase
-        .from('apps')
-        .select('revenue, users_count, growth_rate, status');
+      setLoading(true);
+      const res = await dataFetch(`read/apps_1739884512?owner_id=${userId}`);
 
-      if (error) throw error;
+      if (res?.status === 'error') throw new Error(res.error);
 
+      const apps = res?.data ?? [];
       if (apps) {
         const totalRevenue = apps.reduce((acc, app) => acc + (app.revenue || 0), 0);
         const totalUsers = apps.reduce((acc, app) => acc + (app.users_count || 0), 0);
         const avgGrowth = apps.length > 0 ? apps.reduce((acc, app) => acc + (app.growth_rate || 0), 0) / apps.length : 0;
-        const activeApps = apps.filter(app => app.status === 'Active').length;
+        const activeAppsCount = apps.filter(app => app.status === 'Active').length;
 
         setStats([
           { title: 'Total Revenue', value: `$${totalRevenue.toLocaleString()}`, change: '+12.5%', changeType: 'positive', icon: FiDollarSign },
           { title: 'Active Users', value: totalUsers.toLocaleString(), change: '+8.2%', changeType: 'positive', icon: FiUsers },
           { title: 'Growth Rate', value: `${avgGrowth.toFixed(1)}%`, change: '+2.4%', changeType: 'positive', icon: FiTrendingUp },
-          { title: 'Active Apps', value: activeApps.toString(), change: '+2', changeType: 'positive', icon: FiLayers }
+          { title: 'Active Apps', value: activeAppsCount.toString(), change: '+2', changeType: 'positive', icon: FiLayers }
         ]);
       }
     } catch (error) {
@@ -57,34 +62,28 @@ const Dashboard = () => {
   };
 
   const handleAddNewApp = async () => {
+    if (!userId) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        console.error('No authenticated user found');
-        return;
-      }
-
-      const newApp = {
-        user_id: user.id,
+      const newAppData = {
         name: `New App ${new Date().getTime()}`,
         description: 'A new SaaS application',
         status: 'Development',
-        tech_stack: ['React', 'Supabase'],
+        tech_stack: JSON.stringify(['React', 'Node.js']),
         users_count: 0,
         revenue: 0,
         growth_rate: 0,
-        specifications: {}
+        specifications: JSON.stringify({})
       };
 
-      const { data, error } = await createApp(newApp, user.id);
+      const { data, error } = await createApp(newAppData);
 
       if (error) {
         console.error('Error creating app:', error);
+        alert('Failed to create app: ' + error);
         return;
       }
 
-      if (data) {
+      if (data?.id) {
         navigate(`/apps/${data.id}`);
       }
     } catch (error) {

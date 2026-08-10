@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
-import { supabase } from '../../supabase/supabase';
+import { dataFetch } from '../../api';
 import { createApp } from '../../services/appService';
 import SafeIcon from '../../common/SafeIcon';
 
@@ -11,18 +11,19 @@ const AppsList = () => {
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const userId = localStorage.getItem('user_id');
 
   const fetchApps = async () => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('apps')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
+      const res = await dataFetch(`read/apps_1739884512?owner_id=${userId}&limit=5&sort=created_at&order=desc`);
       
-      if (error) throw error;
-      setApps(data || []);
+      if (res?.status === 'error') throw new Error(res.error);
+      setApps(res?.data ?? []);
     } catch (error) {
       console.error('Error fetching apps:', error);
     } finally {
@@ -32,41 +33,34 @@ const AppsList = () => {
 
   useEffect(() => {
     fetchApps();
-  }, []);
+  }, [userId]);
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'Active': return 'bg-green-100 text-green-800';
-      case 'Development': return 'bg-yellow-100 text-yellow-800';
-      case 'Maintenance': return 'bg-red-100 text-red-800';
+    switch (status?.toLowerCase()) {
+      case 'active': return 'bg-green-100 text-green-800';
+      case 'development': return 'bg-yellow-100 text-yellow-800';
+      case 'maintenance': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const handleAddApp = async () => {
-    if (creating) return;
+    if (creating || !userId) return;
     try {
       setCreating(true);
-      const { data: { user } } = await supabase.auth.getUser();
       
-      if (!user) {
-        console.error('No authenticated user found');
-        return;
-      }
-
       const newApp = {
-        user_id: user.id,
         name: `New App ${new Date().getTime()}`,
         description: 'A new SaaS application',
         status: 'Development',
-        tech_stack: ['React', 'Supabase'],
+        tech_stack: JSON.stringify(['React', 'NCB']),
         users_count: 0,
         revenue: 0,
         growth_rate: 0,
-        specifications: {}
+        specifications: JSON.stringify({})
       };
 
-      const { data, error } = await createApp(newApp, user.id);
+      const { data, error } = await createApp(newApp);
 
       if (error) {
         console.error('Error creating app:', error);
@@ -74,7 +68,7 @@ const AppsList = () => {
       }
 
       if (data) {
-        setApps([data, ...apps.slice(0, 4)]);
+        setApps(prev => [data, ...prev.slice(0, 4)]);
       }
     } catch (error) {
       console.error('Error creating app:', error);
@@ -143,26 +137,31 @@ const AppsList = () => {
                   <span>${(app.revenue || 0).toLocaleString()}</span>
                   <div className="flex items-center space-x-1">
                     <SafeIcon 
-                      icon={app.growth_rate > 0 ? FiTrendingUp : FiTrendingDown} 
-                      className={`w-4 h-4 ${app.growth_rate > 0 ? 'text-green-500' : app.growth_rate < 0 ? 'text-red-500' : 'text-gray-400'}`} 
+                      icon={(app.growth_rate || 0) > 0 ? FiTrendingUp : FiTrendingDown} 
+                      className={`w-4 h-4 ${(app.growth_rate || 0) > 0 ? 'text-green-500' : (app.growth_rate || 0) < 0 ? 'text-red-500' : 'text-gray-400'}`} 
                     />
-                    <span className={app.growth_rate > 0 ? 'text-green-600' : app.growth_rate < 0 ? 'text-red-600' : 'text-gray-500'}>
-                      {app.growth_rate > 0 ? '+' : ''}{app.growth_rate || 0}%
+                    <span className={(app.growth_rate || 0) > 0 ? 'text-green-600' : (app.growth_rate || 0) < 0 ? 'text-red-600' : 'text-gray-500'}>
+                      {(app.growth_rate || 0) > 0 ? '+' : ''}{app.growth_rate || 0}%
                     </span>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2 mt-2">
-                  {app.tech_stack && app.tech_stack.slice(0, 3).map((tech, index) => (
-                    <span
-                      key={index}
-                      className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-md font-medium"
-                    >
-                      {tech}
-                    </span>
-                  ))}
-                  {app.tech_stack && app.tech_stack.length > 3 && (
-                    <span className="text-xs text-gray-500">+{app.tech_stack.length - 3} more</span>
-                  )}
+                  {(() => {
+                    let techStack = [];
+                    try {
+                      techStack = typeof app.tech_stack === 'string' ? JSON.parse(app.tech_stack) : (app.tech_stack || []);
+                    } catch (e) {
+                      techStack = [];
+                    }
+                    return (Array.isArray(techStack) ? techStack : []).slice(0, 3).map((tech, index) => (
+                      <span
+                        key={index}
+                        className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-md font-medium"
+                      >
+                        {tech}
+                      </span>
+                    ));
+                  })()}
                 </div>
               </div>
             </div>

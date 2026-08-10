@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { supabase } from '../supabase/supabase';
+import { dataFetch } from '../api';
 import { createApp, importAppFromJSON } from '../services/appService';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
@@ -20,21 +20,25 @@ const Apps = () => {
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
 
+  const userId = localStorage.getItem('user_id');
+
   useEffect(() => {
-    fetchApps();
-  }, []);
+    if (userId) {
+      fetchApps();
+    } else {
+      setLoading(false);
+    }
+  }, [userId]);
 
   const fetchApps = async () => {
     try {
       setLoading(true);
       setError(null);
-      const { data, error } = await supabase
-        .from('apps')
-        .select('*')
-        .order('created_at', { ascending: false });
       
-      if (error) throw error;
-      setApps(data || []);
+      const res = await dataFetch(`read/apps_1739884512?owner_id=${userId}&sort=created_at&order=desc`);
+      
+      if (res?.status === 'error') throw new Error(res.error);
+      setApps(res?.data ?? []);
     } catch (error) {
       console.error('Error fetching apps:', error);
       setError('Failed to fetch apps');
@@ -44,41 +48,32 @@ const Apps = () => {
   };
 
   const handleAddApp = async () => {
-    if (creating) return;
+    if (creating || !userId) return;
     try {
       setCreating(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error('No authenticated user found');
-        return;
-      }
+      setError(null);
 
-      const newApp = {
-        user_id: user.id,
+      const newAppData = {
         name: `New App ${new Date().getTime()}`,
         description: 'A new SaaS application',
         status: 'Development',
-        tech_stack: ['React', 'Supabase'],
+        tech_stack: JSON.stringify(['React', 'Node.js']), // NCB stores arrays as strings in some cases or jsonb
         users_count: 0,
         revenue: 0,
         growth_rate: 0,
-        specifications: {}
+        specifications: JSON.stringify({})
       };
 
-      const { data, error } = await createApp(newApp, user.id);
+      const { data, error: createError } = await createApp(newAppData);
       
-      if (error) {
-        console.error('Error creating app:', error);
-        setError('Failed to create app');
-        return;
-      }
+      if (createError) throw new Error(createError);
 
       if (data) {
-        setApps([data, ...apps]);
+        setApps(prev => [data, ...prev]);
       }
     } catch (error) {
       console.error('Error creating app:', error);
-      setError('Failed to create app');
+      setError('Failed to create app: ' + error.message);
     } finally {
       setCreating(false);
     }
@@ -86,7 +81,7 @@ const Apps = () => {
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
-    if (!file) return;
+    if (!file || !userId) return;
 
     setImporting(true);
     try {
@@ -94,24 +89,19 @@ const Apps = () => {
       reader.onload = async (e) => {
         try {
           const json = JSON.parse(e.target.result);
-          const { data: { user } } = await supabase.auth.getUser();
+          const { data, error } = await importAppFromJSON(json);
           
-          if (!user) throw new Error('Not authenticated');
-
-          const { data, error } = await importAppFromJSON(json, user.id);
-          
-          if (error) throw error;
+          if (error) throw new Error(error);
           
           if (data) {
-            setApps([data, ...apps]);
+            setApps(prev => [data, ...prev]);
             alert('Project imported successfully!');
           }
         } catch (err) {
           console.error('Import failed:', err);
-          alert('Failed to import project. Please check the file format.');
+          alert('Failed to import project: ' + err.message);
         } finally {
           setImporting(false);
-          // Reset file input
           event.target.value = '';
         }
       };
@@ -123,18 +113,22 @@ const Apps = () => {
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'Active': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Development': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Maintenance': return 'bg-red-100 text-red-800 border-red-200';
+    switch (status?.toLowerCase()) {
+      case 'active': return 'bg-green-100 text-green-800 border-green-200';
+      case 'development': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'maintenance': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
-  const filteredApps = apps.filter(app => {
-    const matchesSearch = app.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         (app.description || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || (app.status || '').toLowerCase() === filterStatus;
+  const filteredApps = (apps ?? []).filter(app => {
+    const name = app?.name ?? '';
+    const desc = app?.description ?? '';
+    const status = app?.status ?? '';
+    
+    const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         desc.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = filterStatus === 'all' || status.toLowerCase() === filterStatus.toLowerCase();
     return matchesSearch && matchesFilter;
   });
 
@@ -142,22 +136,6 @@ const Apps = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <SafeIcon icon={FiLoader} className="w-8 h-8 text-blue-600 animate-spin" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="text-red-600 mb-4">Error: {error}</div>
-          <button 
-            onClick={fetchApps}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Retry
-          </button>
-        </div>
       </div>
     );
   }
@@ -205,6 +183,13 @@ const Apps = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg flex justify-between items-center">
+          <span>{error}</span>
+          <button onClick={fetchApps} className="text-sm font-medium hover:underline">Retry</button>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
         <div className="relative flex-1 max-w-md">
@@ -225,9 +210,9 @@ const Apps = () => {
             className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="development">Development</option>
-            <option value="maintenance">Maintenance</option>
+            <option value="Active">Active</option>
+            <option value="Development">Development</option>
+            <option value="Maintenance">Maintenance</option>
           </select>
         </div>
       </div>
@@ -251,14 +236,22 @@ const Apps = () => {
                 <p className="text-gray-600 text-sm mb-3">{app.description}</p>
                 {/* Tech Stack */}
                 <div className="flex flex-wrap gap-2 mb-4">
-                  {app.tech_stack && app.tech_stack.map((tech, index) => (
-                    <span 
-                      key={index}
-                      className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-md font-medium"
-                    >
-                      {tech}
-                    </span>
-                  ))}
+                  {(() => {
+                    let techStack = [];
+                    try {
+                      techStack = typeof app.tech_stack === 'string' ? JSON.parse(app.tech_stack) : (app.tech_stack || []);
+                    } catch (e) {
+                      techStack = [];
+                    }
+                    return (Array.isArray(techStack) ? techStack : []).map((tech, index) => (
+                      <span 
+                        key={index}
+                        className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-md font-medium"
+                      >
+                        {tech}
+                      </span>
+                    ));
+                  })()}
                 </div>
               </div>
               <div className="relative">
@@ -324,7 +317,7 @@ const Apps = () => {
             {/* Actions */}
             <div className="flex items-center justify-between pt-4 border-t border-gray-100">
               <p className="text-xs text-gray-500">
-                Updated {new Date(app.updated_at).toLocaleDateString()}
+                Updated {app.updated_at ? new Date(app.updated_at).toLocaleDateString() : 'Unknown'}
               </p>
               <div className="flex items-center space-x-2">
                 <button className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">

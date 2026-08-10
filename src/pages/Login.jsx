@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { supabase } from '../supabase/supabase';
+import { authFetch, dataFetch } from '../api';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
-const { FiMail, FiLock, FiZap, FiLoader } = FiIcons;
+const { FiMail, FiLock, FiZap, FiLoader, FiUser } = FiIcons;
 
-const Login = () => {
+const Login = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState(null);
 
@@ -19,27 +20,46 @@ const Login = () => {
 
     try {
       if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
+        // Sign Up with NCB
+        const res = await authFetch('sign-up/email', {
+          method: 'POST',
+          body: JSON.stringify({ email, password, name }),
         });
-        if (error) throw error;
-        if (data.user) {
-            // Create initial profile
-            await supabase.from('profiles').insert([
-                { id: data.user.id, full_name: 'New User', role: 'Developer' }
-            ]);
-            alert('Check your email for the confirmation link!');
+
+        if (res?.status === 'error') throw new Error(res.error || 'Signup failed');
+
+        if (res?.status === 'success' && res.data?.user) {
+          localStorage.setItem('user_id', res.data.user.id);
+          
+          // Create profile in profiles_1739884512
+          await dataFetch('create/profiles_1739884512', {
+            method: 'POST',
+            body: JSON.stringify({
+              user_id: res.data.user.id,
+              full_name: name || 'New User',
+              role: 'Developer',
+              avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
+            })
+          });
+
+          onLoginSuccess();
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+        // Sign In with NCB
+        const res = await authFetch('sign-in/email', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
         });
-        if (error) throw error;
+
+        if (res?.status === 'error') throw new Error(res.error || 'Invalid credentials');
+
+        if (res?.status === 'success' && res.data?.user) {
+          localStorage.setItem('user_id', res.data.user.id);
+          onLoginSuccess();
+        }
       }
-    } catch (error) {
-      setError(error.message);
+    } catch (err) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -67,6 +87,25 @@ const Login = () => {
         )}
 
         <form onSubmit={handleAuth} className="space-y-4">
+          {isSignUp && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <SafeIcon icon={FiUser} className="w-5 h-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="John Doe"
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <div className="relative">
@@ -119,7 +158,10 @@ const Login = () => {
             {isSignUp ? 'Already have an account?' : "Don't have an account?"}
           </span>
           <button
-            onClick={() => setIsSignUp(!isSignUp)}
+            onClick={() => {
+              setIsSignUp(!isSignUp);
+              setError(null);
+            }}
             className="ml-2 text-blue-600 hover:text-blue-700 font-medium"
           >
             {isSignUp ? 'Sign In' : 'Sign Up'}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../supabase/supabase';
+import { authFetch } from '../../api';
 import { createApp } from '../../services/appService';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
@@ -23,7 +23,9 @@ const Header = ({ onMenuClick, user }) => {
 
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut();
+      await authFetch('sign-out', { method: 'POST' });
+      localStorage.removeItem('user_id');
+      navigate('/login');
     } catch (error) {
       console.error('Error signing out:', error);
     }
@@ -31,35 +33,34 @@ const Header = ({ onMenuClick, user }) => {
 
   const handleCreateApp = async () => {
     if (creatingApp) return;
+    const userId = localStorage.getItem('user_id');
+    if (!userId) {
+      navigate('/login');
+      return;
+    }
+
     try {
       setCreatingApp(true);
-      const { data: { user } } = await supabase.auth.getUser();
       
-      if (!user) {
-        console.error('No authenticated user found');
-        return;
-      }
-
       const newApp = {
-        user_id: user.id,
         name: `New App ${new Date().getTime()}`,
         description: 'A new SaaS application',
         status: 'Development',
-        tech_stack: ['React', 'Supabase'],
+        tech_stack: JSON.stringify(['React', 'NCB']),
         users_count: 0,
         revenue: 0,
         growth_rate: 0,
-        specifications: {}
+        specifications: JSON.stringify({})
       };
 
-      const { data, error } = await createApp(newApp, user.id);
+      const { data, error } = await createApp(newApp);
 
       if (error) {
         console.error('Error creating app:', error);
         return;
       }
 
-      if (data) {
+      if (data?.id) {
         navigate(`/apps/${data.id}`);
       }
     } catch (error) {
@@ -162,13 +163,13 @@ const Header = ({ onMenuClick, user }) => {
               className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
             >
               <img
-                src={user.avatar}
-                alt={user.name}
+                src={user?.avatar || `https://ui-avatars.com/api/?name=${user?.name || 'User'}`}
+                alt={user?.name}
                 className="w-8 h-8 rounded-full object-cover"
               />
               <div className="hidden sm:block text-left">
-                <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                <p className="text-xs text-gray-500">{user.email}</p>
+                <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
+                <p className="text-xs text-gray-500">{user?.email || ''}</p>
               </div>
               <SafeIcon icon={FiChevronDown} className="w-4 h-4 text-gray-400" />
             </button>
