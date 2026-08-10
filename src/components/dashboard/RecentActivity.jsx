@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../supabase/supabase';
+import { dataFetch } from '../../api';
 import { formatDistanceToNow } from 'date-fns';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
@@ -9,6 +9,7 @@ const { FiDollarSign, FiGitBranch, FiUsers, FiFileText, FiClock, FiActivity, FiL
 const RecentActivity = () => {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const userId = localStorage.getItem('user_id');
 
   useEffect(() => {
     fetchActivity();
@@ -18,68 +19,55 @@ const RecentActivity = () => {
     try {
       setLoading(true);
       
-      // Fetch latest data from multiple sources
-      const [
-        { data: sales }, 
-        { data: versions }, 
-        { data: materials }, 
-        { data: team },
-        { data: tasks }
-      ] = await Promise.all([
-        supabase.from('sales').select('*, apps(name)').order('date', { ascending: false }).limit(5),
-        supabase.from('app_versions').select('*, apps(name)').order('created_at', { ascending: false }).limit(5),
-        supabase.from('marketing_materials').select('*, apps(name)').order('created_at', { ascending: false }).limit(5),
-        supabase.from('team_members').select('*').order('created_at', { ascending: false }).limit(5),
-        supabase.from('app_tasks').select('*, apps(name)').eq('status', 'completed').order('updated_at', { ascending: false }).limit(5)
+      const [salesRes, versionsRes, materialsRes, teamRes, tasksRes] = await Promise.all([
+        dataFetch(`read/sales_1739884512?owner_id=${userId}&limit=5&sort=date&order=desc`),
+        dataFetch(`read/app_versions_1739884512?owner_id=${userId}&limit=5&sort=created_at&order=desc`),
+        dataFetch(`read/marketing_materials_1739884512?owner_id=${userId}&limit=5&sort=created_at&order=desc`),
+        dataFetch(`read/team_members_1739884512?owner_id=${userId}&limit=5&sort=created_at&order=desc`),
+        dataFetch(`read/app_tasks_1739884512?owner_id=${userId}&status=completed&limit=5&sort=updated_at&order=desc`)
       ]);
 
-      // Normalize and merge data
       const allActivities = [
-        ...(sales || []).map(item => ({
+        ...(salesRes?.data || []).map(item => ({
           id: `sale-${item.id}`,
-          type: 'sale',
-          title: `New sale for ${item.apps?.name || 'Unknown App'}`,
+          title: `New sale recorded`,
           description: `${item.plan_name} - $${item.amount}`,
           timestamp: new Date(item.date),
           icon: FiDollarSign,
           iconColor: 'text-green-600',
           iconBg: 'bg-green-100'
         })),
-        ...(versions || []).map(item => ({
+        ...(versionsRes?.data || []).map(item => ({
           id: `ver-${item.id}`,
-          type: 'update',
           title: `Version ${item.version_number} released`,
-          description: `${item.apps?.name || 'Unknown App'} - ${item.version_type}`,
+          description: `New release deployed to ${item.status}`,
           timestamp: new Date(item.created_at),
           icon: FiGitBranch,
           iconColor: 'text-blue-600',
           iconBg: 'bg-blue-100'
         })),
-        ...(materials || []).map(item => ({
+        ...(materialsRes?.data || []).map(item => ({
           id: `mat-${item.id}`,
-          type: 'document',
           title: 'Marketing asset updated',
-          description: `${item.apps?.name || 'App'}: ${item.name}`,
+          description: item.name,
           timestamp: new Date(item.created_at),
           icon: FiFileText,
           iconColor: 'text-orange-600',
           iconBg: 'bg-orange-100'
         })),
-        ...(team || []).map(item => ({
+        ...(teamRes?.data || []).map(item => ({
           id: `team-${item.id}`,
-          type: 'team',
-          title: 'New team member',
-          description: `${item.name} joined as ${item.role}`,
+          title: 'Team update',
+          description: `${item.name} status updated`,
           timestamp: new Date(item.created_at),
           icon: FiUsers,
           iconColor: 'text-purple-600',
           iconBg: 'bg-purple-100'
         })),
-        ...(tasks || []).map(item => ({
+        ...(tasksRes?.data || []).map(item => ({
           id: `task-${item.id}`,
-          type: 'task',
           title: 'Task completed',
-          description: `${item.apps?.name || 'App'}: ${item.title}`,
+          description: item.title,
           timestamp: new Date(item.updated_at),
           icon: FiClock,
           iconColor: 'text-gray-600',
@@ -87,7 +75,6 @@ const RecentActivity = () => {
         }))
       ];
 
-      // Sort by date descending and take top 5
       const sorted = allActivities
         .sort((a, b) => b.timestamp - a.timestamp)
         .slice(0, 6);
@@ -109,7 +96,7 @@ const RecentActivity = () => {
   }
 
   return (
-    <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+    <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm h-full">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
