@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { authFetch, dataFetch } from './api';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
@@ -10,9 +10,15 @@ import AppDetails from './pages/AppDetails';
 import Analytics from './pages/Analytics';
 import Team from './pages/Team';
 import Settings from './pages/Settings';
-import Onboarding from './pages/Onboarding';
 import Login from './pages/Login';
 import SharedNote from './pages/SharedNote';
+import Portfolio from './pages/Portfolio';
+import TaskBoard from './pages/TaskBoard';
+import Ideas from './pages/Ideas';
+import Costs from './pages/Costs';
+import Roadmap from './pages/Roadmap';
+import WeeklyUpdate from './pages/WeeklyUpdate';
+import PublicRoadmap from './pages/PublicRoadmap';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from './common/SafeIcon';
 
@@ -23,22 +29,44 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userProfile, setUserProfile] = useState({
-    name: 'User',
+    name: '',
     email: '',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
+    avatar: '',
   });
 
   useEffect(() => {
     checkSession();
   }, []);
 
+  const avatarFor = (name, email, avatarUrl) => {
+    if (avatarUrl && !avatarUrl.includes('unsplash.com/photo-1472099645785')) {
+      return avatarUrl;
+    }
+    const label = encodeURIComponent(name || email || 'User');
+    return `https://ui-avatars.com/api/?name=${label}&background=0891b2&color=fff&size=128`;
+  };
+
   const checkSession = async () => {
     try {
       const res = await authFetch('get-session');
       if (res?.status === 'success' && res.data?.user) {
-        localStorage.setItem('user_id', res.data.user.id);
+        const authUser = res.data.user;
+        localStorage.setItem('user_id', authUser.id);
+
+        const sessionName =
+          authUser.name ||
+          authUser.full_name ||
+          [authUser.firstName, authUser.lastName].filter(Boolean).join(' ') ||
+          (authUser.email ? authUser.email.split('@')[0] : 'User');
+        const sessionEmail = authUser.email || '';
+
+        setUserProfile({
+          name: sessionName,
+          email: sessionEmail,
+          avatar: avatarFor(sessionName, sessionEmail, authUser.image || authUser.avatar_url),
+        });
         setIsAuthenticated(true);
-        fetchProfile(res.data.user.id);
+        fetchProfile(authUser.id, { name: sessionName, email: sessionEmail, image: authUser.image });
       } else {
         localStorage.removeItem('user_id');
         setIsAuthenticated(false);
@@ -51,26 +79,52 @@ function App() {
     }
   };
 
-  const fetchProfile = async (userId) => {
+  const fetchProfile = async (userId, sessionFallback = {}) => {
     try {
-      const res = await dataFetch(`read/profiles_1739884512?owner_id=${userId}`);
+      const res = await dataFetch(`read/profiles_1739884512?id=${userId}`);
       if (res?.status === 'success' && res.data?.[0]) {
         const profile = res.data[0];
+        const name = profile.full_name || sessionFallback.name || 'User';
+        const email = profile.email || sessionFallback.email || '';
         setUserProfile({
-          name: profile.full_name || 'User',
-          email: profile.email || '',
-          avatar: profile.avatar_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
+          name,
+          email,
+          avatar: avatarFor(name, email, profile.avatar_url || sessionFallback.image),
         });
+        return;
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
+    }
+    // Keep session fallback already set
+    if (sessionFallback.name || sessionFallback.email) {
+      setUserProfile((prev) => ({
+        name: prev.name || sessionFallback.name || 'User',
+        email: prev.email || sessionFallback.email || '',
+        avatar: prev.avatar || avatarFor(sessionFallback.name, sessionFallback.email, sessionFallback.image),
+      }));
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await authFetch('sign-out', { method: 'POST' });
+    } catch (error) {
+      console.error('Error signing out:', error);
+    } finally {
+      localStorage.removeItem('user_id');
+      setIsAuthenticated(false);
+      setUserProfile({ name: '', email: '', avatar: '' });
     }
   };
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <SafeIcon icon={FiLoader} className="w-8 h-8 text-blue-600 animate-spin" />
+      <div className="h-screen flex items-center justify-center bg-app-mesh bg-[#f3f6f8]">
+        <div className="panel px-6 py-5 flex items-center gap-3">
+          <SafeIcon icon={FiLoader} className="w-5 h-5 text-brand-600 animate-spin" />
+          <span className="text-sm font-medium text-ink-600">Loading studio…</span>
+        </div>
       </div>
     );
   }
@@ -78,23 +132,44 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Shared Link Route */}
         <Route path="/shared/note/:token" element={<SharedNote />} />
-        
+        <Route path="/public/roadmap" element={<PublicRoadmap />} />
+        <Route path="/public/roadmap/:appId" element={<PublicRoadmap />} />
+
         {!isAuthenticated ? (
-          <Route path="*" element={<Login onLoginSuccess={() => setIsAuthenticated(true)} />} />
+          <Route
+            path="*"
+            element={
+              <Login
+                onLoginSuccess={() => {
+                  setIsAuthenticated(true);
+                  checkSession();
+                }}
+              />
+            }
+          />
         ) : (
           <Route
             path="*"
             element={
-              <div className="flex h-screen bg-gray-50">
+              <div className="app-shell">
                 <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <Header onMenuClick={() => setSidebarOpen(true)} user={userProfile} />
-                  <main className="flex-1 overflow-auto">
+                <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+                  <Header
+                    onMenuClick={() => setSidebarOpen(true)}
+                    user={userProfile}
+                    onSignOut={handleSignOut}
+                  />
+                  <main className="flex-1 overflow-auto pb-6">
                     <AnimatePresence mode="wait">
                       <Routes>
                         <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/portfolio" element={<Portfolio />} />
+                        <Route path="/board" element={<TaskBoard />} />
+                        <Route path="/ideas" element={<Ideas />} />
+                        <Route path="/costs" element={<Costs />} />
+                        <Route path="/roadmap" element={<Roadmap />} />
+                        <Route path="/updates" element={<WeeklyUpdate />} />
                         <Route path="/apps" element={<Apps />} />
                         <Route path="/apps/:id" element={<AppDetails />} />
                         <Route path="/analytics" element={<Analytics />} />

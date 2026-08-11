@@ -59,13 +59,13 @@ const TasksWidget = () => {
   const completedTasks = tasks.filter(task => task.completed);
 
   return (
-    <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+    <div className="panel p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Tasks</h3>
-          <p className="text-sm text-gray-600">{activeTasks.length} pending, {completedTasks.length} completed</p>
+          <h3 className="font-display text-lg font-semibold text-ink-950">Tasks</h3>
+          <p className="text-sm text-ink-500">{activeTasks.length} pending, {completedTasks.length} completed</p>
         </div>
-        <button className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors">
+        <button className="p-2 bg-brand-50 text-brand-700 rounded-lg hover:bg-brand-100 transition-colors">
           <SafeIcon icon={FiPlus} className="w-4 h-4" />
         </button>
       </div>
@@ -116,7 +116,7 @@ const TasksWidget = () => {
       </div>
 
       <div className="mt-4 pt-4 border-t border-gray-100">
-        <button className="w-full text-center text-sm text-blue-600 hover:text-blue-700 font-medium">
+        <button className="w-full text-center text-sm text-brand-700 hover:text-brand-800 font-medium">
           View all tasks
         </button>
       </div>

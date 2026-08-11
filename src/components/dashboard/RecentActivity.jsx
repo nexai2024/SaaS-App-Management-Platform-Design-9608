@@ -43,8 +43,8 @@ const RecentActivity = () => {
           description: `New release deployed to ${item.status}`,
           timestamp: new Date(item.created_at),
           icon: FiGitBranch,
-          iconColor: 'text-blue-600',
-          iconBg: 'bg-blue-100'
+          iconColor: 'text-brand-700',
+          iconBg: 'bg-brand-100'
         })),
         ...(materialsRes?.data || []).map(item => ({
           id: `mat-${item.id}`,
@@ -89,18 +89,18 @@ const RecentActivity = () => {
 
   if (loading) {
     return (
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm h-full flex items-center justify-center">
-        <SafeIcon icon={FiLoader} className="w-6 h-6 text-blue-600 animate-spin" />
+      <div className="panel p-6 h-full flex items-center justify-center">
+        <SafeIcon icon={FiLoader} className="w-6 h-6 text-brand-600 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm h-full">
+    <div className="panel p-6 h-full">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
-          <p className="text-sm text-gray-600">Latest updates across your workspace</p>
+          <h3 className="font-display text-lg font-semibold text-ink-950">Recent Activity</h3>
+          <p className="text-sm text-ink-500">Latest updates across your workspace</p>
         </div>
       </div>
       
@@ -129,7 +129,7 @@ const RecentActivity = () => {
       </div>
 
       <div className="mt-6 pt-4 border-t border-gray-100">
-        <button className="w-full text-center text-sm text-blue-600 hover:text-blue-700 font-medium">
+        <button className="w-full text-center text-sm text-brand-700 hover:text-brand-800 font-medium">
           View all activity
         </button>
       </div>

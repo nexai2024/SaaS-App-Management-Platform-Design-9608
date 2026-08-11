@@ -109,7 +109,7 @@ const Onboarding = ({ onComplete }) => {
 
   const renderWelcome = () => (
     <div className="text-center">
-      <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
+      <div className="w-20 h-20 bg-gradient-to-br from-brand-500 to-accent rounded-full flex items-center justify-center mx-auto mb-6">
         <SafeIcon icon={FiZap} className="w-10 h-10 text-white" />
       </div>
       <h2 className="text-3xl font-bold text-gray-900 mb-4">Welcome to SaaS Manager</h2>
@@ -119,8 +119,8 @@ const Onboarding = ({ onComplete }) => {
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="text-center p-4">
-          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-            <SafeIcon icon={FiLayers} className="w-6 h-6 text-blue-600" />
+          <div className="w-12 h-12 bg-brand-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+            <SafeIcon icon={FiLayers} className="w-6 h-6 text-brand-700" />
           </div>
           <h3 className="font-semibold text-gray-900 mb-2">Manage Apps</h3>
           <p className="text-sm text-gray-600">Track tech stacks, repositories, and deployments</p>
@@ -155,7 +155,7 @@ const Onboarding = ({ onComplete }) => {
             value={formData.name}
             onChange={(e) => updateFormData('name', e.target.value)}
             placeholder="Enter your full name"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           />
         </div>
         
@@ -170,7 +170,7 @@ const Onboarding = ({ onComplete }) => {
                   value={role}
                   checked={formData.role === role}
                   onChange={(e) => updateFormData('role', e.target.value)}
-                  className="text-blue-600 border-gray-300 focus:ring-blue-500"
+                  className="text-brand-700 border-gray-300 focus:ring-brand-500"
                 />
                 <span className="ml-3 text-gray-700">{role}</span>
               </label>
@@ -183,7 +183,7 @@ const Onboarding = ({ onComplete }) => {
           <select
             value={formData.experience}
             onChange={(e) => updateFormData('experience', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           >
             <option value="">Select your experience level</option>
             {experienceLevels.map((level) => (
@@ -203,7 +203,7 @@ const Onboarding = ({ onComplete }) => {
           <input
             type="text"
             placeholder="e.g., TaskFlow Pro"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           />
         </div>
         
@@ -212,7 +212,7 @@ const Onboarding = ({ onComplete }) => {
           <textarea
             rows={3}
             placeholder="Brief description of your app"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           />
         </div>
         
@@ -221,7 +221,7 @@ const Onboarding = ({ onComplete }) => {
           <input
             type="url"
             placeholder="https://yourapp.com"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           />
         </div>
         
@@ -230,12 +230,12 @@ const Onboarding = ({ onComplete }) => {
           <input
             type="url"
             placeholder="https://github.com/username/repo"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           />
         </div>
         
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-700">
+        <div className="bg-brand-50 border border-brand-200 rounded-lg p-4">
+          <p className="text-sm text-brand-700">
             Don't worry! You can add more apps and details later from your dashboard.
           </p>
         </div>
@@ -256,7 +256,7 @@ const Onboarding = ({ onComplete }) => {
             onClick={() => toggleGoal(goal.id)}
             className={`p-4 border-2 rounded-lg transition-all text-left ${
               formData.goals.includes(goal.id)
-                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                ? 'border-brand-500 bg-brand-50 text-brand-700'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           >
@@ -264,7 +264,7 @@ const Onboarding = ({ onComplete }) => {
               <SafeIcon 
                 icon={goal.icon} 
                 className={`w-6 h-6 ${
-                  formData.goals.includes(goal.id) ? 'text-blue-600' : 'text-gray-400'
+                  formData.goals.includes(goal.id) ? 'text-brand-700' : 'text-gray-400'
                 }`} 
               />
               <span className="font-medium">{goal.label}</span>
@@ -286,7 +286,7 @@ const Onboarding = ({ onComplete }) => {
         Welcome to SaaS Manager, {formData.name}! Your dashboard is ready.
       </p>
       
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 mb-8">
+      <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-brand-200 rounded-lg p-6 mb-8">
         <h3 className="font-semibold text-gray-900 mb-4">What's next?</h3>
         <div className="space-y-2 text-left">
           <div className="flex items-center space-x-2">
@@ -347,8 +347,8 @@ const Onboarding = ({ onComplete }) => {
         {/* Step Content */}
         <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <SafeIcon icon={steps[currentStep].icon} className="w-8 h-8 text-blue-600" />
+            <div className="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <SafeIcon icon={steps[currentStep].icon} className="w-8 h-8 text-brand-700" />
             </div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
               {steps[currentStep].title}

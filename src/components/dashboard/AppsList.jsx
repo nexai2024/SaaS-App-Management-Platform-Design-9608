@@ -79,26 +79,26 @@ const AppsList = () => {
 
   if (loading) {
     return (
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+      <div className="panel p-6">
         <div className="flex items-center justify-center h-32">
-          <SafeIcon icon={FiLoader} className="w-6 h-6 text-blue-600 animate-spin" />
+          <SafeIcon icon={FiLoader} className="w-6 h-6 text-brand-600 animate-spin" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+    <div className="panel p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">My Apps</h3>
-          <p className="text-sm text-gray-600">Overview of your SaaS applications</p>
+          <h3 className="font-display text-lg font-semibold text-ink-950">My Apps</h3>
+          <p className="text-sm text-ink-500">Overview of your SaaS applications</p>
         </div>
         <div className="flex items-center space-x-2">
           <button
             onClick={handleAddApp}
             disabled={creating}
-            className="bg-blue-50 text-blue-600 px-2 py-1.5 rounded-lg hover:bg-blue-100 transition-colors flex items-center space-x-1 disabled:opacity-70"
+            className="bg-brand-50 text-brand-700 px-2 py-1.5 rounded-lg hover:bg-brand-100 transition-colors flex items-center space-x-1 disabled:opacity-70"
           >
             {creating ? (
               <SafeIcon icon={FiLoader} className="w-4 h-4 animate-spin" />
@@ -109,7 +109,7 @@ const AppsList = () => {
           </button>
           <Link
             to="/apps"
-            className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1"
+            className="text-brand-700 hover:text-brand-800 text-sm font-medium flex items-center space-x-1"
           >
             <span>View all</span>
             <SafeIcon icon={FiExternalLink} className="w-4 h-4" />
@@ -122,7 +122,7 @@ const AppsList = () => {
           <Link
             key={app.id}
             to={`/apps/${app.id}`}
-            className="block p-4 border border-gray-100 rounded-lg hover:border-gray-200 hover:shadow-sm transition-all"
+            className="block p-4 rounded-xl border border-ink-100 bg-white/50 hover:bg-white hover:border-ink-200 hover:shadow-soft transition-all"
           >
             <div className="flex items-center justify-between">
               <div className="flex-1">
@@ -156,7 +156,7 @@ const AppsList = () => {
                     return (Array.isArray(techStack) ? techStack : []).slice(0, 3).map((tech, index) => (
                       <span
                         key={index}
-                        className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-md font-medium"
+                        className="px-2 py-1 bg-brand-50 text-brand-700 text-xs rounded-md font-medium"
                       >
                         {tech}
                       </span>
@@ -178,7 +178,7 @@ const AppsList = () => {
           <p className="text-sm text-gray-600 mb-4">Create your first SaaS application</p>
           <button
             onClick={handleAddApp}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+            className="btn-primary text-sm font-medium"
           >
             Create App
           </button>

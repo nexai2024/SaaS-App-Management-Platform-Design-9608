@@ -13,16 +13,27 @@ function buildProxyUrl(path) {
 
 async function ncbRequest(url, options = {}) {
   try {
+    const { headers: optionHeaders, ...rest } = options;
     const res = await fetch(url, {
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json', ...options.headers },
-      ...options,
+      ...rest,
+      headers: { 'Content-Type': 'application/json', ...optionHeaders },
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      return { status: 'error', data: null, error: body?.message || body?.error || `HTTP ${res.status}`, httpStatus: res.status };
+      const detail =
+        body?.message ||
+        body?.error ||
+        body?.details ||
+        (typeof body?.data === 'string' ? body.data : null) ||
+        `HTTP ${res.status}`;
+      return { status: 'error', data: null, error: detail, httpStatus: res.status, raw: body };
     }
     if (body && typeof body === 'object' && !Array.isArray(body) && typeof body.status === 'string' && 'data' in body) {
+      if (body.status === 'error') {
+        const detail = body.error || body.message || body.details || 'Request failed';
+        return { ...body, error: detail, raw: body };
+      }
       return body;
     }
     return { status: 'success', data: body };

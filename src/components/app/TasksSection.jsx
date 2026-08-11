@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { dataFetch } from '../../api';
+import { tasks as tasksApi, team } from '../../services/dataLayer';
+import { toastSuccess } from '../common/Toast';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 
@@ -32,8 +33,6 @@ const TasksSection = ({ appId }) => {
   const [tagInput, setTagInput] = useState('');
   const [teamMembers, setTeamMembers] = useState([]);
 
-  const userId = localStorage.getItem('user_id');
-
   useEffect(() => {
     if (appId) {
       fetchTasks();
@@ -45,17 +44,7 @@ const TasksSection = ({ appId }) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await dataFetch(`read/app_tasks_1739884512?app_id=${appId}&owner_id=${userId}&sort=priority&order=desc`);
-      
-      if (res?.status === 'error') throw new Error(res.error);
-      
-      const data = (res?.data ?? []).map(task => {
-        let tags = [];
-        try {
-          tags = typeof task.tags === 'string' ? JSON.parse(task.tags) : (task.tags || []);
-        } catch (e) {}
-        return { ...task, tags };
-      });
+      const data = await tasksApi.list(appId);
       setTasks(data);
     } catch (error) {
       console.error('Error fetching tasks:', error);
@@ -67,8 +56,8 @@ const TasksSection = ({ appId }) => {
 
   const fetchTeamMembers = async () => {
     try {
-      const res = await dataFetch(`read/team_members_1739884512?owner_id=${userId}`);
-      setTeamMembers(res?.data ?? []);
+      const members = await team.listMembers();
+      setTeamMembers(members);
     } catch (error) {
       console.error('Error fetching team members:', error);
     }
@@ -77,42 +66,42 @@ const TasksSection = ({ appId }) => {
   const handleSaveTask = async () => {
     try {
       setError(null);
-      const taskData = {
-        ...newTask,
-        tags: JSON.stringify(newTask.tags),
-        app_id: parseInt(appId),
-        user_id: userId,
-        estimated_hours: newTask.estimated_hours ? parseFloat(newTask.estimated_hours) : null,
-        due_date: newTask.due_date ? new Date(newTask.due_date).toISOString() : null,
-        updated_at: new Date().toISOString()
-      };
+      const selectedMember = teamMembers.find((m) => String(m.id) === String(newTask.assignee_id));
+      // Only send assignee_id when it maps to a profiles id — team_members.id breaks the FK.
+      const assigneeId = selectedMember?.user_id || selectedMember?.profile_id || undefined;
 
-      if (editingTask) {
-        await dataFetch(`update/app_tasks_1739884512/${editingTask.id}?owner_id=${userId}`, {
-          method: 'PUT',
-          body: JSON.stringify(taskData)
-        });
-      } else {
-        await dataFetch(`create/app_tasks_1739884512?owner_id=${userId}`, {
-          method: 'POST',
-          body: JSON.stringify({ ...taskData, created_at: new Date().toISOString() })
-        });
-      }
-      
+      await tasksApi.save(
+        appId,
+        {
+          title: newTask.title,
+          description: newTask.description,
+          task_type: newTask.task_type,
+          priority: newTask.priority,
+          status: newTask.status,
+          tags: newTask.tags || [],
+          estimated_hours: newTask.estimated_hours,
+          due_date: newTask.due_date,
+          assignee_id: assigneeId,
+        },
+        editingTask?.id || null
+      );
+
+      toastSuccess(editingTask ? 'Task updated' : 'Task created');
       fetchTasks();
       setShowAddTask(false);
       setEditingTask(null);
       setNewTask({ title: '', description: '', task_type: 'manual', priority: 'medium', status: 'todo', tags: [], estimated_hours: '', due_date: '' });
     } catch (error) {
       console.error('Error saving task:', error);
-      setError('Failed to save task.');
+      setError(error.message || 'Failed to save task.');
     }
   };
 
   const handleDeleteTask = async (taskId) => {
     if (confirm('Are you sure you want to delete this task?')) {
       try {
-        await dataFetch(`delete/app_tasks_1739884512/${taskId}?owner_id=${userId}`, { method: 'DELETE' });
+        await tasksApi.remove(taskId);
+        toastSuccess('Task deleted');
         fetchTasks();
       } catch (error) {
         console.error('Error deleting task:', error);
@@ -122,10 +111,7 @@ const TasksSection = ({ appId }) => {
 
   const handleStatusChange = async (task, newStatus) => {
     try {
-      await dataFetch(`update/app_tasks_1739884512/${task.id}?owner_id=${userId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ status: newStatus, user_id: userId, updated_at: new Date().toISOString() })
-      });
+      await tasksApi.updateStatus(task.id, newStatus);
       fetchTasks();
     } catch (error) {
       console.error('Error updating task status:', error);
@@ -144,13 +130,26 @@ const TasksSection = ({ appId }) => {
   };
 
   const filteredTasks = tasks.filter(task => {
-    const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) || task.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const title = String(task.title || '').toLowerCase();
+    const description = String(task.description || '').toLowerCase();
+    const query = searchQuery.toLowerCase();
+    const matchesSearch = title.includes(query) || description.includes(query);
     const matchesStatus = filterStatus === 'all' || task.status === filterStatus;
     const matchesPriority = filterPriority === 'all' || task.priority === filterPriority;
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
-  if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>;
+  const formatDueDate = (value) => {
+    try {
+      const date = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toLocaleDateString();
+    } catch {
+      return String(value);
+    }
+  };
+
+  if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div></div>;
 
   return (
     <div className="space-y-6">
@@ -173,7 +172,7 @@ const TasksSection = ({ appId }) => {
           <h3 className="text-lg font-semibold text-gray-900">Tasks</h3>
           <p className="text-sm text-gray-600">Manage development tasks and track progress</p>
         </div>
-        <button onClick={() => setShowAddTask(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+        <button onClick={() => setShowAddTask(true)} className="btn-primary flex items-center space-x-2">
           <SafeIcon icon={FiPlus} className="w-4 h-4" />
           <span>Add Task</span>
         </button>
@@ -182,11 +181,11 @@ const TasksSection = ({ appId }) => {
       <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
         <div className="relative flex-1">
           <SafeIcon icon={FiSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search tasks..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+          <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search tasks..." className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
         </div>
         <div className="flex items-center space-x-2">
           <SafeIcon icon={FiFilter} className="w-4 h-4 text-gray-400" />
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
             <option value="all">All Status</option>
             <option value="todo">To Do</option>
             <option value="in_progress">In Progress</option>
@@ -214,10 +213,10 @@ const TasksSection = ({ appId }) => {
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>{task.priority}</span>
                   </div>
                   <p className="text-gray-600 text-sm mb-3">{task.description}</p>
-                  {task.tags && task.tags.length > 0 && (
+                  {Array.isArray(task.tags) && task.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-3">
                       {task.tags.map((tag, index) => (
-                        <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md">{tag}</span>
+                        <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md">{String(tag)}</span>
                       ))}
                     </div>
                   )}
@@ -225,10 +224,10 @@ const TasksSection = ({ appId }) => {
                     <div className="flex items-center space-x-4 text-xs text-gray-500">
                       {task.assignee_id && <div className="flex items-center space-x-1"><SafeIcon icon={FiUser} className="w-3 h-3" /><span>Assigned</span></div>}
                       {task.estimated_hours && <div className="flex items-center space-x-1"><SafeIcon icon={FiClock} className="w-3 h-3" /><span>{task.estimated_hours}h</span></div>}
-                      {task.due_date && <div className="flex items-center space-x-1"><SafeIcon icon={FiCalendar} className="w-3 h-3" /><span>{new Date(task.due_date).toLocaleDateString()}</span></div>}
+                      {task.due_date && <div className="flex items-center space-x-1"><SafeIcon icon={FiCalendar} className="w-3 h-3" /><span>{formatDueDate(task.due_date)}</span></div>}
                     </div>
                     <div className="flex items-center space-x-2">
-                      <button onClick={() => { setEditingTask(task); setNewTask({ ...task, tags: task.tags || [], estimated_hours: task.estimated_hours || '', due_date: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '' }); setShowAddTask(true); }} className="text-gray-400 hover:text-blue-600 transition-colors"><SafeIcon icon={FiEdit3} className="w-4 h-4" /></button>
+                      <button onClick={() => { setEditingTask(task); setNewTask({ ...task, tags: task.tags || [], estimated_hours: task.estimated_hours || '', due_date: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '' }); setShowAddTask(true); }} className="text-gray-400 hover:text-brand-700 transition-colors"><SafeIcon icon={FiEdit3} className="w-4 h-4" /></button>
                       <button onClick={() => handleDeleteTask(task.id)} className="text-gray-400 hover:text-red-600 transition-colors"><SafeIcon icon={FiTrash2} className="w-4 h-4" /></button>
                     </div>
                   </div>
@@ -240,13 +239,13 @@ const TasksSection = ({ appId }) => {
       </div>
       
       {filteredTasks.length === 0 && !error && (
-        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+        <div className="text-center py-12 panel">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <SafeIcon icon={FiTarget} className="w-6 h-6 text-gray-400" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No tasks found</h3>
           <p className="text-gray-600 mb-4">Create tasks to track development progress</p>
-          <button onClick={() => setShowAddTask(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Create Your First Task</button>
+          <button onClick={() => setShowAddTask(true)} className="btn-primary">Create Your First Task</button>
         </div>
       )}
       
@@ -260,12 +259,12 @@ const TasksSection = ({ appId }) => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                <input type="text" value={newTask.title} onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Task title..." />
+                <input type="text" value={newTask.title} onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="Task title..." />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                  <select value={newTask.task_type} onChange={(e) => setNewTask(prev => ({ ...prev, task_type: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  <select value={newTask.task_type} onChange={(e) => setNewTask(prev => ({ ...prev, task_type: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
                     <option value="manual">Manual</option>
                     <option value="automated">Automated</option>
                     <option value="bug">Bug Fix</option>
@@ -275,7 +274,7 @@ const TasksSection = ({ appId }) => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-                  <select value={newTask.priority} onChange={(e) => setNewTask(prev => ({ ...prev, priority: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  <select value={newTask.priority} onChange={(e) => setNewTask(prev => ({ ...prev, priority: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
                     <option value="critical">Critical</option>
                     <option value="high">High</option>
                     <option value="medium">Medium</option>
@@ -285,12 +284,12 @@ const TasksSection = ({ appId }) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea value={newTask.description} onChange={(e) => setNewTask(prev => ({ ...prev, description: e.target.value }))} rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Task description..." />
+                <textarea value={newTask.description} onChange={(e) => setNewTask(prev => ({ ...prev, description: e.target.value }))} rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="Task description..." />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Assignee</label>
-                  <select value={newTask.assignee_id || ''} onChange={(e) => setNewTask(prev => ({ ...prev, assignee_id: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  <select value={newTask.assignee_id || ''} onChange={(e) => setNewTask(prev => ({ ...prev, assignee_id: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
                     <option value="">Unassigned</option>
                     {teamMembers.map((member) => (
                       <option key={member.id} value={member.id}>{member.name}</option>
@@ -299,7 +298,7 @@ const TasksSection = ({ appId }) => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-                  <input type="date" value={newTask.due_date} onChange={(e) => setNewTask(prev => ({ ...prev, due_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                  <input type="date" value={newTask.due_date} onChange={(e) => setNewTask(prev => ({ ...prev, due_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
                 </div>
               </div>
               <div>
@@ -311,7 +310,7 @@ const TasksSection = ({ appId }) => {
                 {newTask.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {newTask.tags.map((tag, index) => (
-                      <span key={index} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-sm flex items-center space-x-1">
+                      <span key={index} className="px-2 py-1 bg-brand-100 text-brand-700 rounded-md text-sm flex items-center space-x-1">
                         <span>{tag}</span>
                         <button onClick={() => removeTag(tag)}>
                           <SafeIcon icon={FiX} className="w-3 h-3" />
@@ -337,9 +336,9 @@ const TasksSection = ({ appId }) => {
 };
 
 const getTaskTypeIcon = (type) => { switch (type) { case 'bug': return FiBug; case 'feature': return FiStar; case 'testing': return FiCode; default: return FiTarget; } };
-const getTaskTypeColor = (type) => { switch (type) { case 'bug': return 'bg-red-100 text-red-800'; case 'feature': return 'bg-green-100 text-green-800'; case 'testing': return 'bg-blue-100 text-blue-800'; default: return 'bg-gray-100 text-gray-800'; } };
+const getTaskTypeColor = (type) => { switch (type) { case 'bug': return 'bg-red-100 text-red-800'; case 'feature': return 'bg-green-100 text-green-800'; case 'testing': return 'bg-brand-100 text-brand-800'; default: return 'bg-gray-100 text-gray-800'; } };
 const getPriorityColor = (priority) => { switch (priority) { case 'critical': return 'text-red-600 bg-red-100'; case 'high': return 'text-orange-600 bg-orange-100'; case 'medium': return 'text-yellow-600 bg-yellow-100'; case 'low': return 'text-green-600 bg-green-100'; default: return 'text-gray-600 bg-gray-100'; } };
 const getStatusIcon = (status) => { switch (status) { case 'completed': return FiCheckCircle; case 'in_progress': return FiPlay; case 'review': return FiPause; default: return FiCircle; } };
-const getStatusColor = (status) => { switch (status) { case 'completed': return 'text-green-600'; case 'in_progress': return 'text-blue-600'; case 'review': return 'text-yellow-600'; default: return 'text-gray-400'; } };
+const getStatusColor = (status) => { switch (status) { case 'completed': return 'text-green-600'; case 'in_progress': return 'text-brand-700'; case 'review': return 'text-yellow-600'; default: return 'text-gray-400'; } };
 
 export default TasksSection;

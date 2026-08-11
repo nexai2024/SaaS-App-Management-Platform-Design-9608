@@ -1,5 +1,5 @@
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const RevenueChart = () => {
   const data = [
@@ -9,63 +9,70 @@ const RevenueChart = () => {
     { month: 'Apr', revenue: 2780, users: 390 },
     { month: 'May', revenue: 1890, users: 480 },
     { month: 'Jun', revenue: 2390, users: 380 },
-    { month: 'Jul', revenue: 3490, users: 430 }
+    { month: 'Jul', revenue: 3490, users: 430 },
   ];
 
   return (
-    <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-      <div className="flex items-center justify-between mb-6">
+    <div className="panel p-5 sm:p-6 h-full">
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Revenue Overview</h3>
-          <p className="text-sm text-gray-600">Monthly revenue and user growth</p>
+          <h3 className="font-display text-lg font-semibold text-ink-950">Revenue overview</h3>
+          <p className="text-sm text-ink-500 mt-0.5">Monthly revenue and user growth</p>
         </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-            <span className="text-sm text-gray-600">Revenue</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 bg-brand-500 rounded-full" />
+            <span className="text-xs font-medium text-ink-500">Revenue</span>
           </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            <span className="text-sm text-gray-600">Users</span>
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 bg-teal-600 rounded-full" />
+            <span className="text-xs font-medium text-ink-500">Users</span>
           </div>
         </div>
       </div>
-      
+
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis 
-              dataKey="month" 
-              stroke="#6b7280"
-              fontSize={12}
-            />
-            <YAxis stroke="#6b7280" fontSize={12} />
-            <Tooltip 
+          <AreaChart data={data}>
+            <defs>
+              <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#0891b2" stopOpacity={0.28} />
+                <stop offset="100%" stopColor="#0891b2" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="userFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#0f766e" stopOpacity={0.2} />
+                <stop offset="100%" stopColor="#0f766e" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e3eaed" vertical={false} />
+            <XAxis dataKey="month" stroke="#768e9d" fontSize={12} tickLine={false} axisLine={false} />
+            <YAxis stroke="#768e9d" fontSize={12} tickLine={false} axisLine={false} />
+            <Tooltip
               contentStyle={{
-                backgroundColor: '#fff',
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                backgroundColor: 'rgba(255,255,255,0.96)',
+                border: '1px solid rgba(28,34,40,0.08)',
+                borderRadius: '12px',
+                boxShadow: '0 12px 40px rgba(28,34,40,0.1)',
+                fontSize: '12px',
               }}
             />
-            <Line 
-              type="monotone" 
-              dataKey="revenue" 
-              stroke="#3b82f6" 
-              strokeWidth={3}
-              dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
-              activeDot={{ r: 6, stroke: '#3b82f6', strokeWidth: 2 }}
+            <Area
+              type="monotone"
+              dataKey="revenue"
+              stroke="#0891b2"
+              strokeWidth={2.5}
+              fill="url(#revFill)"
+              activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff' }}
             />
-            <Line 
-              type="monotone" 
-              dataKey="users" 
-              stroke="#10b981" 
-              strokeWidth={3}
-              dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
-              activeDot={{ r: 6, stroke: '#10b981', strokeWidth: 2 }}
+            <Area
+              type="monotone"
+              dataKey="users"
+              stroke="#0f766e"
+              strokeWidth={2.5}
+              fill="url(#userFill)"
+              activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff' }}
             />
-          </LineChart>
+          </AreaChart>
         </ResponsiveContainer>
       </div>
     </div>

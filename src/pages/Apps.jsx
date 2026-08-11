@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { dataFetch } from '../api';
 import { createApp, importAppFromJSON } from '../services/appService';
+import AppCardMonitor from '../components/app/AppCardMonitor';
+import { getUptimeConfig, syncUptimeFromProvider } from '../services/uptimeIntegrations';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
@@ -29,6 +31,35 @@ const Apps = () => {
       setLoading(false);
     }
   }, [userId]);
+
+  // Background provider sync (UptimeRobot / Better Stack cron results)
+  useEffect(() => {
+    if (!userId || apps.length === 0) return undefined;
+    const cfg = getUptimeConfig();
+    if (cfg.provider === 'none') return undefined;
+    if (!cfg.uptimeRobotApiKey && !cfg.betterStackToken) return undefined;
+
+    let cancelled = false;
+    const run = async () => {
+      try {
+        await syncUptimeFromProvider(apps);
+        if (!cancelled) {
+          // Force remount-friendly refresh by touching state lightly
+          setApps((prev) => [...prev]);
+        }
+      } catch {
+        /* settings will show lastSyncError */
+      }
+    };
+
+    run();
+    const minutes = Math.max(1, Number(cfg.autoSyncMinutes) || 5);
+    const timer = window.setInterval(run, minutes * 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [userId, apps.length]);
 
   const fetchApps = async () => {
     try {
@@ -135,7 +166,7 @@ const Apps = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <SafeIcon icon={FiLoader} className="w-8 h-8 text-blue-600 animate-spin" />
+        <SafeIcon icon={FiLoader} className="w-8 h-8 text-brand-600 animate-spin" />
       </div>
     );
   }
@@ -144,13 +175,13 @@ const Apps = () => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 space-y-6"
+      className="page-shell"
     >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Apps</h1>
-          <p className="text-gray-600 mt-1">Manage and monitor your SaaS applications</p>
+          <h1 className="page-title">My Apps</h1>
+          <p className="page-subtitle">Manage and monitor your SaaS applications</p>
         </div>
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
           <label className={`cursor-pointer bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center space-x-2 ${importing ? 'opacity-50 cursor-not-allowed' : ''}`}>
@@ -171,7 +202,7 @@ const Apps = () => {
           <button 
             onClick={handleAddApp}
             disabled={creating}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center space-x-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            className="btn-primary font-medium flex items-center space-x-2 disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {creating ? (
               <SafeIcon icon={FiLoader} className="w-4 h-4 animate-spin" />
@@ -199,7 +230,7 @@ const Apps = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search apps..."
-            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           />
         </div>
         <div className="flex items-center space-x-2">
@@ -207,7 +238,7 @@ const Apps = () => {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           >
             <option value="all">All Status</option>
             <option value="Active">Active</option>
@@ -223,7 +254,7 @@ const Apps = () => {
           <motion.div
             key={app.id}
             whileHover={{ y: -2 }}
-            className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm"
+            className="panel p-6"
           >
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
@@ -246,7 +277,7 @@ const Apps = () => {
                     return (Array.isArray(techStack) ? techStack : []).map((tech, index) => (
                       <span 
                         key={index}
-                        className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-md font-medium"
+                        className="px-2 py-1 bg-brand-50 text-brand-700 text-xs rounded-md font-medium"
                       >
                         {tech}
                       </span>
@@ -260,6 +291,8 @@ const Apps = () => {
                 </button>
               </div>
             </div>
+
+            <AppCardMonitor app={app} />
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4 mb-4">
@@ -325,7 +358,7 @@ const Apps = () => {
                 </button>
                 <Link
                   to={`/apps/${app.id}`}
-                  className="flex items-center space-x-1 bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                  className="flex items-center space-x-1 bg-brand-50 text-brand-700 px-3 py-1.5 rounded-lg hover:bg-brand-100 transition-colors text-sm font-medium"
                 >
                   <span>View Details</span>
                   <SafeIcon icon={FiExternalLink} className="w-3 h-3" />
@@ -345,7 +378,7 @@ const Apps = () => {
           <p className="text-gray-600 mb-6">Try adjusting your search or filter criteria</p>
           <button 
             onClick={handleAddApp}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="btn-primary font-medium"
           >
             Create your first app
           </button>

@@ -71,13 +71,13 @@ const Analytics = () => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 space-y-6"
+      className="page-shell"
     >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-gray-600 mt-1">Comprehensive insights across all your apps</p>
+          <h1 className="page-title">Analytics</h1>
+          <p className="page-subtitle">Comprehensive insights across all your apps</p>
         </div>
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
           <div className="flex items-center space-x-2 bg-white border border-gray-300 rounded-lg px-3 py-2">
@@ -93,7 +93,7 @@ const Analytics = () => {
               <option value="1y">Last year</option>
             </select>
           </div>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+          <button className="btn-primary flex items-center space-x-2">
             <SafeIcon icon={FiDownload} className="w-4 h-4" />
             <span>Export</span>
           </button>
@@ -106,12 +106,12 @@ const Analytics = () => {
           <motion.div
             key={index}
             whileHover={{ y: -2 }}
-            className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm"
+            className="panel p-6"
           >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                <p className="text-2xl font-bold text-gray-900 mt-2">{stat.value}</p>
+                <p className="page-title mt-2">{stat.value}</p>
                 <div className="flex items-center mt-2">
                   <span className={`text-sm font-medium ${
                     stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
@@ -121,8 +121,8 @@ const Analytics = () => {
                   <span className="text-sm text-gray-500 ml-1">vs last period</span>
                 </div>
               </div>
-              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
-                <SafeIcon icon={stat.icon} className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 bg-brand-50 rounded-lg flex items-center justify-center">
+                <SafeIcon icon={stat.icon} className="w-6 h-6 text-brand-700" />
               </div>
             </div>
           </motion.div>
@@ -132,7 +132,7 @@ const Analytics = () => {
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue Trend */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <div className="panel p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Revenue Trend</h3>
@@ -172,7 +172,7 @@ const Analytics = () => {
         </div>
 
         {/* User Acquisition */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <div className="panel p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">User Acquisition</h3>
@@ -204,7 +204,7 @@ const Analytics = () => {
       </div>
 
       {/* App Performance */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+      <div className="panel p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">App Performance</h3>
@@ -232,7 +232,7 @@ const Analytics = () => {
       </div>
 
       {/* Conversion Funnel */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+      <div className="panel p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Conversion Funnel</h3>
@@ -240,8 +240,8 @@ const Analytics = () => {
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 bg-blue-50 rounded-lg">
-            <div className="text-2xl font-bold text-blue-600">10,240</div>
+          <div className="text-center p-4 bg-brand-50 rounded-lg">
+            <div className="text-2xl font-bold text-brand-700">10,240</div>
             <div className="text-sm text-gray-600">Visitors</div>
             <div className="text-xs text-gray-500 mt-1">100%</div>
           </div>
@@ -264,7 +264,7 @@ const Analytics = () => {
       </div>
 
       {/* Top Performing Apps Table */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+      <div className="panel p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Top Performing Apps</h3>

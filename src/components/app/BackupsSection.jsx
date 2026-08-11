@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { dataFetch } from '../../api';
+import { backups as backupsApi } from '../../services/dataLayer';
+import { isTruthyFlag, toDbFlag } from '../../lib/dataUtils';
+import { toastSuccess } from '../common/Toast';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 
@@ -22,8 +24,6 @@ const BackupsSection = ({ appId }) => {
   });
   const [restoringBackup, setRestoringBackup] = useState(null);
 
-  const userId = localStorage.getItem('user_id');
-
   useEffect(() => {
     if (appId) fetchBackups();
   }, [appId]);
@@ -31,10 +31,8 @@ const BackupsSection = ({ appId }) => {
   const fetchBackups = async () => {
     try {
       setLoading(true);
-      const res = await dataFetch(`read/app_backups_1739884512?app_id=${appId}&owner_id=${userId}&sort=backup_date&order=desc`);
-      
-      if (res?.status === 'error') throw new Error(res.error);
-      setBackups(res?.data ?? []);
+      const data = await backupsApi.list(appId);
+      setBackups(data);
     } catch (error) {
       console.error('Error fetching backups:', error);
     } finally {
@@ -44,25 +42,8 @@ const BackupsSection = ({ appId }) => {
 
   const handleCreateBackup = async () => {
     try {
-      const backupData = {
-        ...newBackup,
-        app_id: parseInt(appId),
-        user_id: userId,
-        backup_name: newBackup.backup_name || `Backup ${new Date().toLocaleString()}`,
-        backup_size: Math.floor(Math.random() * 1000000000), // Mock size
-        storage_location: `https://storage.example.com/backups/${appId}/${Date.now()}`,
-        expiry_date: newBackup.expiry_date ? new Date(newBackup.expiry_date).toISOString() : null,
-        backup_date: new Date().toISOString(),
-        status: 'active',
-        created_at: new Date().toISOString()
-      };
-
-      const res = await dataFetch(`create/app_backups_1739884512?owner_id=${userId}`, {
-        method: 'POST',
-        body: JSON.stringify(backupData)
-      });
-      
-      if (res?.status === 'error') throw new Error(res.error);
+      await backupsApi.create(appId, newBackup);
+      toastSuccess('Backup created');
       fetchBackups();
       setShowCreateBackup(false);
       setNewBackup({
@@ -83,20 +64,18 @@ const BackupsSection = ({ appId }) => {
 
     try {
       setRestoringBackup(backupId);
-      // Update status to restoring
-      await dataFetch(`update/app_backups_1739884512/${backupId}?owner_id=${userId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ status: 'restoring', user_id: userId })
-      });
+      await backupsApi.update(backupId, { status: 'restoring' });
 
-      // Simulate restore process
       setTimeout(async () => {
-        await dataFetch(`update/app_backups_1739884512/${backupId}?owner_id=${userId}`, {
-          method: 'PUT',
-          body: JSON.stringify({ status: 'active', user_id: userId })
-        });
-        setRestoringBackup(null);
-        fetchBackups();
+        try {
+          await backupsApi.update(backupId, { status: 'active' });
+          setRestoringBackup(null);
+          fetchBackups();
+          toastSuccess('Restore completed');
+        } catch (error) {
+          console.error('Error completing restore:', error);
+          setRestoringBackup(null);
+        }
       }, 3000);
 
     } catch (error) {
@@ -108,7 +87,8 @@ const BackupsSection = ({ appId }) => {
   const handleDeleteBackup = async (backupId) => {
     if (confirm('Are you sure you want to delete this backup? This action cannot be undone.')) {
       try {
-        await dataFetch(`delete/app_backups_1739884512/${backupId}?owner_id=${userId}`, { method: 'DELETE' });
+        await backupsApi.remove(backupId);
+        toastSuccess('Backup deleted');
         fetchBackups();
       } catch (error) {
         console.error('Error deleting backup:', error);
@@ -136,7 +116,7 @@ const BackupsSection = ({ appId }) => {
 
   const getBackupTypeColor = (type) => {
     switch (type) {
-      case 'manual': return 'bg-blue-100 text-blue-800';
+      case 'manual': return 'bg-brand-100 text-brand-800';
       case 'automatic': return 'bg-green-100 text-green-800';
       case 'snapshot': return 'bg-purple-100 text-purple-800';
       case 'migration': return 'bg-orange-100 text-orange-800';
@@ -147,7 +127,7 @@ const BackupsSection = ({ appId }) => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'active': return 'bg-green-100 text-green-800';
-      case 'restoring': return 'bg-blue-100 text-blue-800';
+      case 'restoring': return 'bg-brand-100 text-brand-800';
       case 'expired': return 'bg-red-100 text-red-800';
       case 'deleted': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -161,7 +141,7 @@ const BackupsSection = ({ appId }) => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
       </div>
     );
   }
@@ -175,7 +155,7 @@ const BackupsSection = ({ appId }) => {
         </div>
         <button
           onClick={() => setShowCreateBackup(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+          className="btn-primary flex items-center space-x-2"
         >
           <SafeIcon icon={FiUpload} className="w-4 h-4" />
           <span>Create Backup</span>
@@ -203,7 +183,7 @@ const BackupsSection = ({ appId }) => {
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(backup.status)}`}>
                         {backup.status}
                       </span>
-                      {backup.is_encrypted === 1 && (
+                      {isTruthyFlag(backup.is_encrypted) && (
                         <span className="flex items-center space-x-1 text-green-600 text-xs">
                           <SafeIcon icon={FiShield} className="w-3 h-3" />
                           <span>Encrypted</span>
@@ -242,10 +222,10 @@ const BackupsSection = ({ appId }) => {
                 <button
                   onClick={() => handleRestoreBackup(backup.id)}
                   disabled={restoringBackup === backup.id || isExpired(backup)}
-                  className="text-blue-600 hover:text-blue-700 disabled:text-gray-400 disabled:cursor-not-allowed text-sm flex items-center space-x-1"
+                  className="text-brand-700 hover:text-brand-800 disabled:text-gray-400 disabled:cursor-not-allowed text-sm flex items-center space-x-1"
                 >
                   {restoringBackup === backup.id ? (
-                    <><div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div><span>Restoring...</span></>
+                    <><div className="animate-spin rounded-full h-3 w-3 border-b border-brand-600"></div><span>Restoring...</span></>
                   ) : (
                     <><SafeIcon icon={FiRefreshCw} className="w-4 h-4" /><span>Restore</span></>
                   )}
@@ -259,13 +239,13 @@ const BackupsSection = ({ appId }) => {
       </div>
 
       {backups.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+        <div className="text-center py-12 panel">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <SafeIcon icon={FiHardDrive} className="w-6 h-6 text-gray-400" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No backups yet</h3>
           <p className="text-gray-600 mb-4">Create backups to protect your app data</p>
-          <button onClick={() => setShowCreateBackup(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Create First Backup</button>
+          <button onClick={() => setShowCreateBackup(true)} className="btn-primary">Create First Backup</button>
         </div>
       )}
 
@@ -279,11 +259,11 @@ const BackupsSection = ({ appId }) => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Backup Name</label>
-                <input type="text" value={newBackup.backup_name} onChange={(e) => setNewBackup(prev => ({ ...prev, backup_name: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Optional backup name" />
+                <input type="text" value={newBackup.backup_name} onChange={(e) => setNewBackup(prev => ({ ...prev, backup_name: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500" placeholder="Optional backup name" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Backup Type</label>
-                <select value={newBackup.backup_type} onChange={(e) => setNewBackup(prev => ({ ...prev, backup_type: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                <select value={newBackup.backup_type} onChange={(e) => setNewBackup(prev => ({ ...prev, backup_type: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500">
                   <option value="manual">Manual Backup</option>
                   <option value="automatic">Automatic Backup</option>
                   <option value="snapshot">Snapshot</option>
@@ -292,16 +272,16 @@ const BackupsSection = ({ appId }) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
-                <input type="date" value={newBackup.expiry_date} onChange={(e) => setNewBackup(prev => ({ ...prev, expiry_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                <input type="date" value={newBackup.expiry_date} onChange={(e) => setNewBackup(prev => ({ ...prev, expiry_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500" />
               </div>
               <div className="flex items-center">
-                <input type="checkbox" id="encrypt-backup" checked={newBackup.is_encrypted === 1} onChange={(e) => setNewBackup(prev => ({ ...prev, is_encrypted: e.target.checked ? 1 : 0 }))} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                <input type="checkbox" id="encrypt-backup" checked={isTruthyFlag(newBackup.is_encrypted)} onChange={(e) => setNewBackup(prev => ({ ...prev, is_encrypted: toDbFlag(e.target.checked) }))} className="rounded border-gray-300 text-brand-700 focus:ring-brand-500" />
                 <label htmlFor="encrypt-backup" className="ml-2 text-sm text-gray-700">Encrypt this backup</label>
               </div>
             </div>
             <div className="flex items-center justify-end space-x-3 mt-6">
               <button onClick={() => setShowCreateBackup(false)} className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors">Cancel</button>
-              <button onClick={handleCreateBackup} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"><SafeIcon icon={FiSave} className="w-4 h-4 inline mr-2" />Create Backup</button>
+              <button onClick={handleCreateBackup} className="btn-primary"><SafeIcon icon={FiSave} className="w-4 h-4 inline mr-2" />Create Backup</button>
             </div>
           </motion.div>
         </div>
