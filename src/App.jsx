@@ -45,20 +45,25 @@ function App() {
       }
     } catch (error) {
       console.error('Session check failed:', error);
+      setIsAuthenticated(false);
     } finally {
       setLoading(false);
     }
   };
 
   const fetchProfile = async (userId) => {
-    const res = await dataFetch(`read/profiles_1739884512?owner_id=${userId}`);
-    if (res?.status === 'success' && res.data?.[0]) {
-      const profile = res.data[0];
-      setUserProfile({
-        name: profile.full_name || 'User',
-        email: profile.email || '',
-        avatar: profile.avatar_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
-      });
+    try {
+      const res = await dataFetch(`read/profiles_1739884512?owner_id=${userId}`);
+      if (res?.status === 'success' && res.data?.[0]) {
+        const profile = res.data[0];
+        setUserProfile({
+          name: profile.full_name || 'User',
+          email: profile.email || '',
+          avatar: profile.avatar_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
     }
   };
 

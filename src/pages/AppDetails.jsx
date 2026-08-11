@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { supabase } from '../supabase/supabase';
+import { dataFetch } from '../api';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
@@ -17,7 +17,7 @@ const {
   FiArrowLeft, FiEdit3, FiGithub, FiGlobe, FiDollarSign, FiUsers, 
   FiTrendingUp, FiCode, FiImage, FiFileText, FiExternalLink, FiPlus, 
   FiTrash2, FiSave, FiX, FiLoader, FiMessageSquare, FiTarget, 
-  FiPackage, FiHardDrive, FiZap, FiMaximize2, FiCheck
+  FiPackage, FiHardDrive, FiZap, FiMaximize2, FiCheck, FiAlertTriangle
 } = FiIcons;
 
 const AppDetails = () => {
@@ -28,6 +28,9 @@ const AppDetails = () => {
   const [appData, setAppData] = useState(null);
   const [pricingPlans, setPricingPlans] = useState([]);
   const [sales, setSales] = useState([]);
+  const [error, setError] = useState(null);
+
+  const userId = localStorage.getItem('user_id');
 
   // Tech Stack State
   const [showAddTech, setShowAddTech] = useState(false);
@@ -49,24 +52,43 @@ const AppDetails = () => {
 
   const fetchAppDetails = async () => {
     try {
-      // Fetch App
-      const { data: app, error: appError } = await supabase
-        .from('apps')
-        .select('*')
-        .eq('id', id)
-        .single();
+      setLoading(true);
+      setError(null);
       
-      if (appError) throw appError;
+      // We'll try fetching as a list first if the direct ID path is problematic
+      // This is often more reliable in some proxy setups
+      const res = await dataFetch(`read/apps_1739884512?id=${id}&owner_id=${userId}`);
+      
+      if (res?.status === 'error') throw new Error(res.error);
+      
+      // res.data is an array for list reads
+      const app = Array.isArray(res?.data) ? res.data[0] : res.data;
+      
+      if (!app) {
+        throw new Error('Application not found');
+      }
+
+      // Parse tech_stack if it's a string
+      try {
+        if (typeof app.tech_stack === 'string') {
+          app.tech_stack = JSON.parse(app.tech_stack);
+        }
+      } catch (e) {
+        app.tech_stack = Array.isArray(app.tech_stack) ? app.tech_stack : [];
+      }
 
       // Fetch related data
-      const { data: plans } = await supabase.from('pricing_plans').select('*').eq('app_id', id).order('price', { ascending: true });
-      const { data: salesData } = await supabase.from('sales').select('*').eq('app_id', id).order('date', { ascending: false });
+      const [plansRes, salesRes] = await Promise.all([
+        dataFetch(`read/pricing_plans_1739884512?app_id=${id}&owner_id=${userId}&sort=price&order=asc`),
+        dataFetch(`read/sales_1739884512?app_id=${id}&owner_id=${userId}&sort=date&order=desc`)
+      ]);
 
       setAppData(app);
-      setPricingPlans(plans || []);
-      setSales(salesData || []);
+      setPricingPlans(plansRes?.data ?? []);
+      setSales(salesRes?.data ?? []);
     } catch (error) {
       console.error('Error fetching app details:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -87,18 +109,23 @@ const AppDetails = () => {
 
   const handleSaveApp = async () => {
     try {
-      const { error } = await supabase
-        .from('apps')
-        .update({
-          name: appData.name,
-          description: appData.description,
-          domain: appData.domain,
-          repository: appData.repository
-        })
-        .eq('id', id);
+      const payload = {
+        name: appData.name,
+        description: appData.description,
+        domain: appData.domain,
+        repository: appData.repository,
+        user_id: userId,
+        updated_at: new Date().toISOString()
+      };
+
+      const res = await dataFetch(`update/apps_1739884512/${id}?owner_id=${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
       
-      if (error) throw error;
+      if (res?.status === 'error') throw new Error(res.error);
       setIsEditing(false);
+      fetchAppDetails(); // Refresh
     } catch (error) {
       console.error('Error updating app:', error);
     }
@@ -108,13 +135,20 @@ const AppDetails = () => {
   const handleAddTech = async () => {
     if (!newTech.trim()) return;
     try {
-      const updatedStack = [...(appData.tech_stack || []), newTech.trim()];
-      const { error } = await supabase
-        .from('apps')
-        .update({ tech_stack: updatedStack })
-        .eq('id', id);
+      const currentStack = Array.isArray(appData.tech_stack) ? appData.tech_stack : [];
+      const updatedStack = [...currentStack, newTech.trim()];
+      const payload = { 
+        tech_stack: JSON.stringify(updatedStack),
+        user_id: userId,
+        updated_at: new Date().toISOString()
+      };
 
-      if (error) throw error;
+      const res = await dataFetch(`update/apps_1739884512/${id}?owner_id=${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+
+      if (res?.status === 'error') throw new Error(res.error);
       setAppData({ ...appData, tech_stack: updatedStack });
       setNewTech('');
       setShowAddTech(false);
@@ -126,13 +160,20 @@ const AppDetails = () => {
   const handleRemoveTech = async (techToRemove) => {
     if (!confirm(`Remove ${techToRemove}?`)) return;
     try {
-      const updatedStack = appData.tech_stack.filter(t => t !== techToRemove);
-      const { error } = await supabase
-        .from('apps')
-        .update({ tech_stack: updatedStack })
-        .eq('id', id);
+      const currentStack = Array.isArray(appData.tech_stack) ? appData.tech_stack : [];
+      const updatedStack = currentStack.filter(t => t !== techToRemove);
+      const payload = { 
+        tech_stack: JSON.stringify(updatedStack),
+        user_id: userId,
+        updated_at: new Date().toISOString()
+      };
 
-      if (error) throw error;
+      const res = await dataFetch(`update/apps_1739884512/${id}?owner_id=${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+
+      if (res?.status === 'error') throw new Error(res.error);
       setAppData({ ...appData, tech_stack: updatedStack });
     } catch (error) {
       console.error('Error removing tech:', error);
@@ -144,26 +185,26 @@ const AppDetails = () => {
     try {
       const featuresArray = planForm.features.split('\n').filter(f => f.trim() !== '');
       const planData = {
-        app_id: id,
+        app_id: parseInt(id),
         name: planForm.name,
         price: parseFloat(planForm.price),
-        features: featuresArray
+        features: JSON.stringify(featuresArray),
+        user_id: userId
       };
 
       if (editingPlan) {
-        const { error } = await supabase
-          .from('pricing_plans')
-          .update(planData)
-          .eq('id', editingPlan.id);
-        if (error) throw error;
+        await dataFetch(`update/pricing_plans_1739884512/${editingPlan.id}?owner_id=${userId}`, {
+          method: 'PUT',
+          body: JSON.stringify(planData)
+        });
       } else {
-        const { error } = await supabase
-          .from('pricing_plans')
-          .insert([planData]);
-        if (error) throw error;
+        await dataFetch(`create/pricing_plans_1739884512?owner_id=${userId}`, {
+          method: 'POST',
+          body: JSON.stringify({ ...planData, created_at: new Date().toISOString() })
+        });
       }
 
-      fetchAppDetails(); // Refresh all data to be safe
+      fetchAppDetails();
       setShowPricingModal(false);
       setEditingPlan(null);
       setPlanForm({ name: '', price: '', features: '' });
@@ -175,8 +216,7 @@ const AppDetails = () => {
   const handleDeletePlan = async (planId) => {
     if (!confirm('Are you sure you want to delete this plan?')) return;
     try {
-      const { error } = await supabase.from('pricing_plans').delete().eq('id', planId);
-      if (error) throw error;
+      await dataFetch(`delete/pricing_plans_1739884512/${planId}?owner_id=${userId}`, { method: 'DELETE' });
       setPricingPlans(prev => prev.filter(p => p.id !== planId));
     } catch (error) {
       console.error('Error deleting plan:', error);
@@ -187,25 +227,25 @@ const AppDetails = () => {
   const handleSaveSale = async () => {
     try {
       const saleData = {
-        app_id: id,
+        app_id: parseInt(id),
         customer_name: saleForm.customer_name,
         plan_name: saleForm.plan_name,
         amount: parseFloat(saleForm.amount),
         status: saleForm.status,
-        date: saleForm.date || new Date().toISOString()
+        date: saleForm.date || new Date().toISOString(),
+        user_id: userId
       };
 
       if (editingSale) {
-        const { error } = await supabase
-          .from('sales')
-          .update(saleData)
-          .eq('id', editingSale.id);
-        if (error) throw error;
+        await dataFetch(`update/sales_1739884512/${editingSale.id}?owner_id=${userId}`, {
+          method: 'PUT',
+          body: JSON.stringify(saleData)
+        });
       } else {
-        const { error } = await supabase
-          .from('sales')
-          .insert([saleData]);
-        if (error) throw error;
+        await dataFetch(`create/sales_1739884512?owner_id=${userId}`, {
+          method: 'POST',
+          body: JSON.stringify(saleData)
+        });
       }
 
       fetchAppDetails();
@@ -220,8 +260,7 @@ const AppDetails = () => {
   const handleDeleteSale = async (saleId) => {
     if (!confirm('Delete this sale record?')) return;
     try {
-      const { error } = await supabase.from('sales').delete().eq('id', saleId);
-      if (error) throw error;
+      await dataFetch(`delete/sales_1739884512/${saleId}?owner_id=${userId}`, { method: 'DELETE' });
       setSales(prev => prev.filter(s => s.id !== saleId));
     } catch (error) {
       console.error('Error deleting sale:', error);
@@ -256,25 +295,25 @@ const AppDetails = () => {
                 {isEditing ? (
                   <input
                     type="text"
-                    value={appData.name}
+                    value={appData?.name || ''}
                     onChange={(e) => setAppData({ ...appData, name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 ) : (
-                  <p className="text-gray-900">{appData.name}</p>
+                  <p className="text-gray-900">{appData?.name}</p>
                 )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 {isEditing ? (
                   <textarea
-                    value={appData.description || ''}
+                    value={appData?.description || ''}
                     onChange={(e) => setAppData({ ...appData, description: e.target.value })}
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 ) : (
-                  <p className="text-gray-600">{appData.description}</p>
+                  <p className="text-gray-600">{appData?.description}</p>
                 )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -283,13 +322,13 @@ const AppDetails = () => {
                   {isEditing ? (
                     <input
                       type="text"
-                      value={appData.domain || ''}
+                      value={appData?.domain || ''}
                       onChange={(e) => setAppData({ ...appData, domain: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   ) : (
-                    <a href={`https://${appData.domain}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 flex items-center space-x-1">
-                      <span>{appData.domain || 'N/A'}</span>
+                    <a href={appData?.domain ? `https://${appData.domain}` : '#'} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 flex items-center space-x-1">
+                      <span>{appData?.domain || 'N/A'}</span>
                       <SafeIcon icon={FiExternalLink} className="w-3 h-3" />
                     </a>
                   )}
@@ -299,12 +338,12 @@ const AppDetails = () => {
                   {isEditing ? (
                     <input
                       type="text"
-                      value={appData.repository || ''}
+                      value={appData?.repository || ''}
                       onChange={(e) => setAppData({ ...appData, repository: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   ) : (
-                    <a href={appData.repository} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 flex items-center space-x-1">
+                    <a href={appData?.repository || '#'} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 flex items-center space-x-1">
                       <SafeIcon icon={FiGithub} className="w-4 h-4" />
                       <span>View Repository</span>
                     </a>
@@ -351,7 +390,7 @@ const AppDetails = () => {
               <SafeIcon icon={FiUsers} className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{(appData.users_count || 0).toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">{(appData?.users_count || 0).toLocaleString()}</p>
               <p className="text-sm text-gray-600">Active Users</p>
             </div>
           </div>
@@ -362,7 +401,7 @@ const AppDetails = () => {
               <SafeIcon icon={FiDollarSign} className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">${(appData.revenue || 0).toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">${(appData?.revenue || 0).toLocaleString()}</p>
               <p className="text-sm text-gray-600">Monthly Revenue</p>
             </div>
           </div>
@@ -373,7 +412,7 @@ const AppDetails = () => {
               <SafeIcon icon={FiTrendingUp} className="w-5 h-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">+{appData.growth_rate || 0}%</p>
+              <p className="text-2xl font-bold text-gray-900">+{appData?.growth_rate || 0}%</p>
               <p className="text-sm text-gray-600">Growth Rate</p>
             </div>
           </div>
@@ -424,7 +463,7 @@ const AppDetails = () => {
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {appData.tech_stack && appData.tech_stack.map((tech, index) => (
+          {(appData?.tech_stack || []).map((tech, index) => (
             <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex items-center justify-between group hover:border-blue-200 transition-colors">
               <span className="font-medium text-gray-900">{tech}</span>
               <button 
@@ -435,7 +474,7 @@ const AppDetails = () => {
               </button>
             </div>
           ))}
-          {(!appData.tech_stack || appData.tech_stack.length === 0) && (
+          {(!appData?.tech_stack || appData.tech_stack.length === 0) && (
             <div className="col-span-full text-center py-8 text-gray-500">
               No technologies listed yet.
             </div>
@@ -463,47 +502,55 @@ const AppDetails = () => {
           </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {pricingPlans.map((plan) => (
-            <div key={plan.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
-              <div className="text-center mb-4">
-                <h4 className="text-lg font-semibold text-gray-900">{plan.name}</h4>
-                <div className="mt-2">
-                  <span className="text-3xl font-bold text-gray-900">${plan.price}</span>
-                  <span className="text-gray-600">/month</span>
+          {pricingPlans.map((plan) => {
+            let features = [];
+            try {
+              features = typeof plan.features === 'string' ? JSON.parse(plan.features) : (plan.features || []);
+            } catch (e) {
+              features = [];
+            }
+            return (
+              <div key={plan.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                <div className="text-center mb-4">
+                  <h4 className="text-lg font-semibold text-gray-900">{plan.name}</h4>
+                  <div className="mt-2">
+                    <span className="text-3xl font-bold text-gray-900">${plan.price}</span>
+                    <span className="text-gray-600">/month</span>
+                  </div>
+                </div>
+                <ul className="space-y-2 mb-6 min-h-[100px]">
+                  {features.map((feature, index) => (
+                    <li key={index} className="flex items-start space-x-2 text-sm text-gray-600">
+                      <SafeIcon icon={FiCheck} className="w-4 h-4 text-green-500 mt-0.5" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex items-center space-x-2 border-t pt-4">
+                  <button 
+                    onClick={() => {
+                      setEditingPlan(plan);
+                      setPlanForm({ 
+                        name: plan.name, 
+                        price: plan.price, 
+                        features: (features).join('\n') 
+                      });
+                      setShowPricingModal(true);
+                    }}
+                    className="flex-1 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+                  >
+                    Edit Plan
+                  </button>
+                  <button 
+                    onClick={() => handleDeletePlan(plan.id)}
+                    className="text-gray-400 hover:text-red-500 p-2 transition-colors"
+                  >
+                    <SafeIcon icon={FiTrash2} className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-              <ul className="space-y-2 mb-6 min-h-[100px]">
-                {plan.features && plan.features.map((feature, index) => (
-                  <li key={index} className="flex items-start space-x-2 text-sm text-gray-600">
-                    <SafeIcon icon={FiCheck} className="w-4 h-4 text-green-500 mt-0.5" />
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="flex items-center space-x-2 border-t pt-4">
-                <button 
-                  onClick={() => {
-                    setEditingPlan(plan);
-                    setPlanForm({ 
-                      name: plan.name, 
-                      price: plan.price, 
-                      features: (plan.features || []).join('\n') 
-                    });
-                    setShowPricingModal(true);
-                  }}
-                  className="flex-1 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
-                >
-                  Edit Plan
-                </button>
-                <button 
-                  onClick={() => handleDeletePlan(plan.id)}
-                  className="text-gray-400 hover:text-red-500 p-2 transition-colors"
-                >
-                  <SafeIcon icon={FiTrash2} className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {pricingPlans.length === 0 && (
             <div className="col-span-full text-center py-12 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
               No pricing plans yet. Add one to get started.
@@ -727,12 +774,24 @@ const AppDetails = () => {
   };
 
   if (loading) return (
-    <div className="p-6 flex justify-center items-center h-64">
+    <div className="p-6 flex flex-col justify-center items-center h-64 space-y-4">
       <SafeIcon icon={FiLoader} className="w-8 h-8 animate-spin text-blue-600" />
+      <p className="text-gray-500 animate-pulse">Loading app details...</p>
     </div>
   );
   
-  if (!appData) return <div className="p-6">App not found</div>;
+  if (error || !appData) return (
+    <div className="p-6 flex flex-col items-center justify-center min-h-[50vh] text-center">
+      <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+        <SafeIcon icon={FiAlertTriangle} className="w-8 h-8 text-red-600" />
+      </div>
+      <h2 className="text-xl font-bold text-gray-900 mb-2">App Not Found</h2>
+      <p className="text-gray-600 mb-6">{error || 'The application you are looking for does not exist or you do not have permission to view it.'}</p>
+      <Link to="/apps" className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium">
+        Back to My Apps
+      </Link>
+    </div>
+  );
 
   return (
     <motion.div
@@ -741,7 +800,7 @@ const AppDetails = () => {
       className="p-6 space-y-6"
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0">
         <div className="flex items-center space-x-4">
           <Link
             to="/apps"
@@ -750,17 +809,17 @@ const AppDetails = () => {
             <SafeIcon icon={FiArrowLeft} className="w-5 h-5 text-gray-600" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{appData.name}</h1>
-            <p className="text-gray-600">{appData.description}</p>
+            <h1 className="text-2xl font-bold text-gray-900">{appData?.name}</h1>
+            <p className="text-gray-600">{appData?.description}</p>
           </div>
         </div>
         <div className="flex items-center space-x-3">
           <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-            appData.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+            appData?.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
           }`}>
-            {appData.status}
+            {appData?.status}
           </span>
-          {appData.landing_page && (
+          {appData?.landing_page && (
             <a
               href={appData.landing_page}
               target="_blank"

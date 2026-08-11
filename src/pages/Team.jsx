@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { supabase } from '../supabase/supabase';
+import { dataFetch } from '../api';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 
@@ -16,20 +16,20 @@ const Team = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const userId = localStorage.getItem('user_id');
+
   useEffect(() => {
     fetchTeamData();
   }, []);
 
   const fetchTeamData = async () => {
     try {
-      const { data: members, error: membersError } = await supabase.from('team_members').select('*');
-      if (membersError) throw membersError;
+      setLoading(true);
+      const membersRes = await dataFetch(`read/team_members_1739884512?owner_id=${userId}`);
+      const tasksRes = await dataFetch(`read/app_tasks_1739884512?owner_id=${userId}`);
 
-      const { data: tasksData, error: tasksError } = await supabase.from('tasks').select('*');
-      if (tasksError) throw tasksError;
-
-      setTeamMembers(members || []);
-      setTasks(tasksData || []);
+      setTeamMembers(membersRes?.data ?? []);
+      setTasks(tasksRes?.data ?? []);
     } catch (error) {
       console.error('Error fetching team data:', error);
     } finally {
@@ -68,7 +68,7 @@ const Team = () => {
   const getTaskStatusColor = (status) => {
     switch (status) {
       case 'completed': return 'text-green-600 bg-green-100';
-      case 'in-progress': return 'text-blue-600 bg-blue-100';
+      case 'in_progress': return 'text-blue-600 bg-blue-100';
       case 'pending': return 'text-gray-600 bg-gray-100';
       default: return 'text-gray-600 bg-gray-100';
     }
@@ -213,49 +213,57 @@ const Team = () => {
               </tr>
             </thead>
             <tbody>
-              {teamMembers.map((member) => (
-                <tr key={member.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-4 px-6">
-                    <div className="flex items-center space-x-3">
-                      <img
-                        src={member.avatar_url || 'https://via.placeholder.com/150'}
-                        alt={member.name}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
-                      <div>
-                        <p className="font-medium text-gray-900">{member.name}</p>
-                        <p className="text-sm text-gray-600">{member.email}</p>
+              {teamMembers.map((member) => {
+                let projects = [];
+                try {
+                  projects = typeof member.projects === 'string' ? JSON.parse(member.projects) : (member.projects || []);
+                } catch (e) {
+                  projects = [];
+                }
+                return (
+                  <tr key={member.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-4 px-6">
+                      <div className="flex items-center space-x-3">
+                        <img
+                          src={member.avatar_url || `https://ui-avatars.com/api/?name=${member.name}`}
+                          alt={member.name}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                        <div>
+                          <p className="font-medium text-gray-900">{member.name}</p>
+                          <p className="text-sm text-gray-600">{member.email}</p>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRoleColor(member.role)}`}>
-                      {member.role}
-                    </span>
-                  </td>
-                  <td className="py-4 px-6">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(member.status)}`}>
-                      {member.status}
-                    </span>
-                  </td>
-                  <td className="py-4 px-6">
-                    <div className="flex flex-wrap gap-1">
-                      {member.projects && member.projects.slice(0, 2).map((project, index) => (
-                        <span key={index} className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-md">
-                          {project}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="py-4 px-6 text-sm text-gray-600">{member.last_active}</td>
-                  <td className="py-4 px-6">
-                    <div className="flex items-center space-x-2">
-                      <button className="text-blue-600 hover:text-blue-700 text-sm">Edit</button>
-                      <button className="text-red-600 hover:text-red-700 text-sm">Remove</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRoleColor(member.role)}`}>
+                        {member.role}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(member.status)}`}>
+                        {member.status}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex flex-wrap gap-1">
+                        {projects.slice(0, 2).map((project, index) => (
+                          <span key={index} className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-md">
+                            {project}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 text-sm text-gray-600">{member.last_active}</td>
+                    <td className="py-4 px-6">
+                      <div className="flex items-center space-x-2">
+                        <button className="text-blue-600 hover:text-blue-700 text-sm">Edit</button>
+                        <button className="text-red-600 hover:text-red-700 text-sm">Remove</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {teamMembers.length === 0 && (
                 <tr>
                     <td colSpan="6" className="py-8 text-center text-gray-500">No team members found. Invite someone!</td>
@@ -297,9 +305,9 @@ const Team = () => {
                       </span>
                     </div>
                     <div className="flex items-center space-x-4 text-sm text-gray-600">
-                      <span>Assigned to: {task.assignee_name}</span>
-                      <span>App: {task.app_name}</span>
-                      <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
+                      <span>Assigned to: {task.assignee_name || 'Unassigned'}</span>
+                      <span>App ID: {task.app_id}</span>
+                      <span>Due: {task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date'}</span>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -318,7 +326,7 @@ const Team = () => {
     </div>
   );
 
-  if (loading) return <div className="p-6 flex justify-center"><SafeIcon icon={FiLoader} className="w-8 h-8 animate-spin text-blue-600"/></div>;
+  if (loading) return <div className="p-6 flex justify-center h-64 items-center"><SafeIcon icon={FiLoader} className="w-8 h-8 animate-spin text-blue-600"/></div>;
 
   return (
     <motion.div

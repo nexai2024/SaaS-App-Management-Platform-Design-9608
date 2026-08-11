@@ -7,22 +7,25 @@ export const createApp = async (appData) => {
 
     const { importSource, ...dbAppData } = appData;
     
-    // NCB create endpoint already includes ?Instance query param via api.js
+    // Ensure all required fields for NCB are present and formatted correctly
+    const payload = {
+      ...dbAppData,
+      user_id: userId,
+      tech_stack: typeof dbAppData.tech_stack === 'string' ? dbAppData.tech_stack : JSON.stringify(dbAppData.tech_stack || []),
+      specifications: typeof dbAppData.specifications === 'string' ? dbAppData.specifications : JSON.stringify(dbAppData.specifications || {}),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
     const res = await dataFetch(`create/apps_1739884512?owner_id=${userId}`, {
       method: 'POST',
-      body: JSON.stringify({ 
-        ...dbAppData, 
-        user_id: userId, 
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
+      body: JSON.stringify(payload)
     });
 
     if (res?.status === 'error') throw new Error(res.error);
 
     const app = res.data;
 
-    // Create default materials if not importing from JSON
     if (!importSource && app?.id) {
       const defaultMaterials = [
         {

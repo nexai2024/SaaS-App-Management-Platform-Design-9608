@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { supabase } from '../../supabase/supabase';
+import { dataFetch } from '../../api';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 
@@ -17,10 +17,12 @@ const BackupsSection = ({ appId }) => {
   const [newBackup, setNewBackup] = useState({
     backup_name: '',
     backup_type: 'manual',
-    is_encrypted: false,
+    is_encrypted: 0,
     expiry_date: ''
   });
   const [restoringBackup, setRestoringBackup] = useState(null);
+
+  const userId = localStorage.getItem('user_id');
 
   useEffect(() => {
     if (appId) fetchBackups();
@@ -29,14 +31,10 @@ const BackupsSection = ({ appId }) => {
   const fetchBackups = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('app_backups')
-        .select('*')
-        .eq('app_id', appId)
-        .order('backup_date', { ascending: false });
+      const res = await dataFetch(`read/app_backups_1739884512?app_id=${appId}&owner_id=${userId}&sort=backup_date&order=desc`);
       
-      if (error) throw error;
-      setBackups(data || []);
+      if (res?.status === 'error') throw new Error(res.error);
+      setBackups(res?.data ?? []);
     } catch (error) {
       console.error('Error fetching backups:', error);
     } finally {
@@ -48,26 +46,29 @@ const BackupsSection = ({ appId }) => {
     try {
       const backupData = {
         ...newBackup,
-        app_id: appId,
-        user_id: (await supabase.auth.getUser()).data.user.id,
+        app_id: parseInt(appId),
+        user_id: userId,
         backup_name: newBackup.backup_name || `Backup ${new Date().toLocaleString()}`,
         backup_size: Math.floor(Math.random() * 1000000000), // Mock size
         storage_location: `https://storage.example.com/backups/${appId}/${Date.now()}`,
-        expiry_date: newBackup.expiry_date ? new Date(newBackup.expiry_date).toISOString() : null
+        expiry_date: newBackup.expiry_date ? new Date(newBackup.expiry_date).toISOString() : null,
+        backup_date: new Date().toISOString(),
+        status: 'active',
+        created_at: new Date().toISOString()
       };
 
-      const { data, error } = await supabase
-        .from('app_backups')
-        .insert([backupData])
-        .select();
+      const res = await dataFetch(`create/app_backups_1739884512?owner_id=${userId}`, {
+        method: 'POST',
+        body: JSON.stringify(backupData)
+      });
       
-      if (error) throw error;
+      if (res?.status === 'error') throw new Error(res.error);
       fetchBackups();
       setShowCreateBackup(false);
       setNewBackup({
         backup_name: '',
         backup_type: 'manual',
-        is_encrypted: false,
+        is_encrypted: 0,
         expiry_date: ''
       });
     } catch (error) {
@@ -82,24 +83,22 @@ const BackupsSection = ({ appId }) => {
 
     try {
       setRestoringBackup(backupId);
-      // Mock restore process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      await supabase
-        .from('app_backups')
-        .update({ status: 'restoring' })
-        .eq('id', backupId);
+      // Update status to restoring
+      await dataFetch(`update/app_backups_1739884512/${backupId}?owner_id=${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'restoring', user_id: userId })
+      });
 
-      // Simulate restore completion
+      // Simulate restore process
       setTimeout(async () => {
-        await supabase
-          .from('app_backups')
-          .update({ status: 'active' })
-          .eq('id', backupId);
+        await dataFetch(`update/app_backups_1739884512/${backupId}?owner_id=${userId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'active', user_id: userId })
+        });
         setRestoringBackup(null);
+        fetchBackups();
       }, 3000);
 
-      fetchBackups();
     } catch (error) {
       console.error('Error restoring backup:', error);
       setRestoringBackup(null);
@@ -109,7 +108,7 @@ const BackupsSection = ({ appId }) => {
   const handleDeleteBackup = async (backupId) => {
     if (confirm('Are you sure you want to delete this backup? This action cannot be undone.')) {
       try {
-        await supabase.from('app_backups').delete().eq('id', backupId);
+        await dataFetch(`delete/app_backups_1739884512/${backupId}?owner_id=${userId}`, { method: 'DELETE' });
         fetchBackups();
       } catch (error) {
         console.error('Error deleting backup:', error);
@@ -169,7 +168,6 @@ const BackupsSection = ({ appId }) => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">Backups</h3>
@@ -184,7 +182,6 @@ const BackupsSection = ({ appId }) => {
         </button>
       </div>
 
-      {/* Backups List */}
       <div className="space-y-4">
         {backups.map((backup) => (
           <motion.div
@@ -206,7 +203,7 @@ const BackupsSection = ({ appId }) => {
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(backup.status)}`}>
                         {backup.status}
                       </span>
-                      {backup.is_encrypted && (
+                      {backup.is_encrypted === 1 && (
                         <span className="flex items-center space-x-1 text-green-600 text-xs">
                           <SafeIcon icon={FiShield} className="w-3 h-3" />
                           <span>Encrypted</span>
@@ -239,13 +236,6 @@ const BackupsSection = ({ appId }) => {
                     <span>{backup.compression_type || 'gzip'}</span>
                   </div>
                 </div>
-
-                {backup.restore_point && (
-                  <div className="mt-3">
-                    <span className="text-sm text-gray-600">Restore Point: </span>
-                    <span className="text-sm font-medium text-gray-900">{backup.restore_point}</span>
-                  </div>
-                )}
               </div>
 
               <div className="flex items-center space-x-2 ml-4">
@@ -255,26 +245,13 @@ const BackupsSection = ({ appId }) => {
                   className="text-blue-600 hover:text-blue-700 disabled:text-gray-400 disabled:cursor-not-allowed text-sm flex items-center space-x-1"
                 >
                   {restoringBackup === backup.id ? (
-                    <>
-                      <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div>
-                      <span>Restoring...</span>
-                    </>
+                    <><div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div><span>Restoring...</span></>
                   ) : (
-                    <>
-                      <SafeIcon icon={FiRefreshCw} className="w-4 h-4" />
-                      <span>Restore</span>
-                    </>
+                    <><SafeIcon icon={FiRefreshCw} className="w-4 h-4" /><span>Restore</span></>
                   )}
                 </button>
-                <button className="text-gray-400 hover:text-gray-600">
-                  <SafeIcon icon={FiDownload} className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDeleteBackup(backup.id)}
-                  className="text-gray-400 hover:text-red-600"
-                >
-                  <SafeIcon icon={FiTrash2} className="w-4 h-4" />
-                </button>
+                <button className="text-gray-400 hover:text-gray-600"><SafeIcon icon={FiDownload} className="w-4 h-4" /></button>
+                <button onClick={() => handleDeleteBackup(backup.id)} className="text-gray-400 hover:text-red-600"><SafeIcon icon={FiTrash2} className="w-4 h-4" /></button>
               </div>
             </div>
           </motion.div>
@@ -288,98 +265,43 @@ const BackupsSection = ({ appId }) => {
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No backups yet</h3>
           <p className="text-gray-600 mb-4">Create backups to protect your app data</p>
-          <button
-            onClick={() => setShowCreateBackup(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Create First Backup
-          </button>
+          <button onClick={() => setShowCreateBackup(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Create First Backup</button>
         </div>
       )}
 
-      {/* Create Backup Modal */}
       {showCreateBackup && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
-          >
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Create Backup</h3>
-              <button
-                onClick={() => setShowCreateBackup(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <SafeIcon icon={FiX} className="w-5 h-5" />
-              </button>
+              <button onClick={() => setShowCreateBackup(false)} className="text-gray-400 hover:text-gray-600"><SafeIcon icon={FiX} className="w-5 h-5" /></button>
             </div>
-
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Backup Name</label>
-                <input
-                  type="text"
-                  value={newBackup.backup_name}
-                  onChange={(e) => setNewBackup(prev => ({ ...prev, backup_name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Optional backup name"
-                />
+                <input type="text" value={newBackup.backup_name} onChange={(e) => setNewBackup(prev => ({ ...prev, backup_name: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Optional backup name" />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Backup Type</label>
-                <select
-                  value={newBackup.backup_type}
-                  onChange={(e) => setNewBackup(prev => ({ ...prev, backup_type: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
+                <select value={newBackup.backup_type} onChange={(e) => setNewBackup(prev => ({ ...prev, backup_type: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                   <option value="manual">Manual Backup</option>
                   <option value="automatic">Automatic Backup</option>
                   <option value="snapshot">Snapshot</option>
                   <option value="migration">Migration Backup</option>
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
-                <input
-                  type="date"
-                  value={newBackup.expiry_date}
-                  onChange={(e) => setNewBackup(prev => ({ ...prev, expiry_date: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">Leave empty for no expiry</p>
+                <input type="date" value={newBackup.expiry_date} onChange={(e) => setNewBackup(prev => ({ ...prev, expiry_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
               </div>
-
               <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="encrypt-backup"
-                  checked={newBackup.is_encrypted}
-                  onChange={(e) => setNewBackup(prev => ({ ...prev, is_encrypted: e.target.checked }))}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <label htmlFor="encrypt-backup" className="ml-2 text-sm text-gray-700">
-                  Encrypt this backup
-                </label>
+                <input type="checkbox" id="encrypt-backup" checked={newBackup.is_encrypted === 1} onChange={(e) => setNewBackup(prev => ({ ...prev, is_encrypted: e.target.checked ? 1 : 0 }))} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                <label htmlFor="encrypt-backup" className="ml-2 text-sm text-gray-700">Encrypt this backup</label>
               </div>
             </div>
-
             <div className="flex items-center justify-end space-x-3 mt-6">
-              <button
-                onClick={() => setShowCreateBackup(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateBackup}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <SafeIcon icon={FiSave} className="w-4 h-4 inline mr-2" />
-                Create Backup
-              </button>
+              <button onClick={() => setShowCreateBackup(false)} className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors">Cancel</button>
+              <button onClick={handleCreateBackup} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"><SafeIcon icon={FiSave} className="w-4 h-4 inline mr-2" />Create Backup</button>
             </div>
           </motion.div>
         </div>
