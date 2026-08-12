@@ -19,6 +19,19 @@ import Costs from './pages/Costs';
 import Roadmap from './pages/Roadmap';
 import WeeklyUpdate from './pages/WeeklyUpdate';
 import PublicRoadmap from './pages/PublicRoadmap';
+import PublicStatus from './pages/PublicStatus';
+import PublicWaitlist from './pages/PublicWaitlist';
+import StatusManage from './pages/StatusManage';
+import Waitlists from './pages/Waitlists';
+import Support from './pages/Support';
+import Affiliates from './pages/Affiliates';
+import ContentCalendar from './pages/ContentCalendar';
+import Experiments from './pages/Experiments';
+import CustomerHealth from './pages/CustomerHealth';
+import Domains from './pages/Domains';
+import LegalVault from './pages/LegalVault';
+import Copilot from './pages/Copilot';
+import { hydrateStudioFromCloud } from './services/studioFeatures';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from './common/SafeIcon';
 
@@ -37,6 +50,15 @@ function App() {
   useEffect(() => {
     checkSession();
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    hydrateStudioFromCloud().catch((e) => console.warn('Studio hydrate skipped', e));
+    const id = setInterval(() => {
+      hydrateStudioFromCloud().catch(() => {});
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [isAuthenticated]);
 
   const avatarFor = (name, email, avatarUrl) => {
     if (avatarUrl && !avatarUrl.includes('unsplash.com/photo-1472099645785')) {
@@ -135,6 +157,8 @@ function App() {
         <Route path="/shared/note/:token" element={<SharedNote />} />
         <Route path="/public/roadmap" element={<PublicRoadmap />} />
         <Route path="/public/roadmap/:appId" element={<PublicRoadmap />} />
+        <Route path="/status" element={<PublicStatus />} />
+        <Route path="/launch/:slug" element={<PublicWaitlist />} />
 
         {!isAuthenticated ? (
           <Route
@@ -170,6 +194,16 @@ function App() {
                         <Route path="/costs" element={<Costs />} />
                         <Route path="/roadmap" element={<Roadmap />} />
                         <Route path="/updates" element={<WeeklyUpdate />} />
+                        <Route path="/status-manage" element={<StatusManage />} />
+                        <Route path="/waitlists" element={<Waitlists />} />
+                        <Route path="/support" element={<Support />} />
+                        <Route path="/affiliates" element={<Affiliates />} />
+                        <Route path="/content" element={<ContentCalendar />} />
+                        <Route path="/experiments" element={<Experiments />} />
+                        <Route path="/health" element={<CustomerHealth />} />
+                        <Route path="/domains" element={<Domains />} />
+                        <Route path="/legal" element={<LegalVault />} />
+                        <Route path="/copilot" element={<Copilot />} />
                         <Route path="/apps" element={<Apps />} />
                         <Route path="/apps/:id" element={<AppDetails />} />
                         <Route path="/analytics" element={<Analytics />} />

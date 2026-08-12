@@ -23,6 +23,7 @@ import {
   toMysqlDatetime,
   unwrapList,
   unwrapOne,
+  isInternalNote,
 } from '../lib/dataUtils';
 import { saveWithCachedStrategies, listCachedStrategies, clearCachedStrategy, clearAllCachedStrategies } from '../lib/ncbSaveCache';
 import { toastError } from '../components/common/Toast';
@@ -40,6 +41,22 @@ export const TABLES = {
   workflows: 'workflows_1739884512',
   workflowExecutions: 'workflow_executions_1739884512',
   teamMembers: 'team_members_1739884512',
+  // Dedicated studio tables (see migration 20260811170000_studio_feature_tables.sql)
+  studioTickets: 'studio_tickets_1739884512',
+  studioReplyTemplates: 'studio_reply_templates_1739884512',
+  studioIncidents: 'studio_incidents_1739884512',
+  studioMaintenance: 'studio_maintenance_1739884512',
+  studioPublicBundles: 'studio_public_bundles_1739884512',
+  studioWaitlists: 'studio_waitlists_1739884512',
+  studioWaitlistSignups: 'studio_waitlist_signups_1739884512',
+  studioAffiliates: 'studio_affiliates_1739884512',
+  studioAffiliatePayouts: 'studio_affiliate_payouts_1739884512',
+  studioContent: 'studio_content_1739884512',
+  studioExperiments: 'studio_experiments_1739884512',
+  studioDomains: 'studio_domains_1739884512',
+  studioLegal: 'studio_legal_1739884512',
+  studioWebhookTokens: 'studio_webhook_tokens_1739884512',
+  studioWebhookEvents: 'studio_webhook_events_1739884512',
 };
 
 async function request(path, options = {}, { silent = false, errorMessage } = {}) {
@@ -315,7 +332,7 @@ export const sales = {
     }
 
     try {
-      const noteRows = await notes.list(appId);
+      const noteRows = await notes.listRaw(appId);
       const saleNotes = (noteRows || [])
         .filter((n) => n.note_type === 'sale' || String(n.title || '').startsWith('[Sale]'))
         .map((n) => {
@@ -546,7 +563,8 @@ export const sales = {
 };
 
 export const notes = {
-  async list(appId) {
+  /** Raw notes including internal sale/marketing/studio rows (for fallbacks only). */
+  async listRaw(appId) {
     const id = asDbId(appId, 'app id');
     const res = await request(
       `read/${TABLES.notes}?app_id=${id}&${ownerQuery('sort=is_pinned&order=desc')}`,
@@ -554,6 +572,12 @@ export const notes = {
       { errorMessage: 'Failed to load notes' }
     );
     return unwrapList(res.data).map(normalizeNote);
+  },
+
+  /** Human notes only — excludes sale/marketing/studio system rows. */
+  async list(appId) {
+    const rows = await this.listRaw(appId);
+    return rows.filter((n) => !isInternalNote(n));
   },
 
   async save(appId, note, existingId = null) {
@@ -791,7 +815,7 @@ export const marketing = {
 
     // Include marketing assets that were persisted as notes (fallback path).
     try {
-      const noteRows = await notes.list(appId);
+      const noteRows = await notes.listRaw(appId);
       const marketingNotes = (noteRows || [])
         .filter((n) => n.note_type === 'marketing' || String(n.title || '').startsWith('[Marketing]'))
         .map((n) =>

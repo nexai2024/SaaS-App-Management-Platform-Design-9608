@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { marketing as marketingApi } from '../../services/dataLayer';
 import { competitorsStore } from '../../services/portfolioStore';
@@ -200,16 +201,25 @@ const MarketingSection = ({ appId }) => {
           <h3 className="text-lg font-semibold text-gray-900">Marketing & Brand Assets</h3>
           <p className="text-sm text-gray-600">Manage your copy, strategies, and competitive intel</p>
         </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowModal(true);
-          }}
-          className="btn-primary flex items-center space-x-2"
-        >
-          <SafeIcon icon={FiPlus} className="w-4 h-4" />
-          <span>Add Asset</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to={`/experiments?app=${appId}`}
+            className="btn-secondary flex items-center space-x-2 text-sm"
+          >
+            <SafeIcon icon={FiTarget} className="w-4 h-4" />
+            <span>Experiment lab</span>
+          </Link>
+          <button
+            onClick={() => {
+              resetForm();
+              setShowModal(true);
+            }}
+            className="btn-primary flex items-center space-x-2"
+          >
+            <SafeIcon icon={FiPlus} className="w-4 h-4" />
+            <span>Add Asset</span>
+          </button>
+        </div>
       </div>
 
       <div className="panel overflow-hidden">

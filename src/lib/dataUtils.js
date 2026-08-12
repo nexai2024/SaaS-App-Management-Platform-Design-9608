@@ -234,3 +234,41 @@ export function normalizePlan(plan) {
     features: parseJsonArray(plan.features),
   };
 }
+
+/**
+ * Notes that are storage fallbacks / system docs — never show in Notes UI.
+ */
+export function isInternalNote(note) {
+  if (!note) return false;
+  const type = String(note.note_type || '')
+    .trim()
+    .toLowerCase();
+  const title = String(note.title || '');
+  const tags = String(note.tags || '').toLowerCase();
+
+  if (
+    type === 'sale' ||
+    type === 'marketing' ||
+    type.startsWith('studio_') ||
+    type === 'studio_sync' ||
+    type === 'studio_webhook' ||
+    type === 'studio_public'
+  ) {
+    return true;
+  }
+  if (
+    title.startsWith('[Sale]') ||
+    title.startsWith('[Marketing]') ||
+    title.startsWith('[Studio]')
+  ) {
+    return true;
+  }
+  if (tags.includes('studio,') || tags.startsWith('studio')) {
+    // only treat as internal when clearly studio system tags
+    if (tags.includes('studio,sync') || tags.includes('studio,webhook') || tags.includes('studio,public')) {
+      return true;
+    }
+  }
+  return false;
+}
+

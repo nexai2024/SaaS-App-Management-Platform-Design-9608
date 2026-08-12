@@ -18,6 +18,16 @@ const {
   FiLightbulb,
   FiPieChart,
   FiFileText,
+  FiActivity,
+  FiInbox,
+  FiGift,
+  FiCalendar,
+  FiTarget,
+  FiHeart,
+  FiGlobe,
+  FiShield,
+  FiMessageCircle,
+  FiFlag,
 } = FiIcons;
 
 const Sidebar = ({ isOpen, onClose }) => {
@@ -40,6 +50,7 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const primaryNav = [
     { path: '/dashboard', icon: FiHome, label: 'Dashboard' },
+    { path: '/copilot', icon: FiMessageCircle, label: 'Co-pilot' },
     { path: '/portfolio', icon: FiDollarSign, label: 'Revenue' },
     { path: '/board', icon: FiColumns, label: 'Task Board' },
     { path: '/apps', icon: FiLayers, label: 'My Apps' },
@@ -50,6 +61,21 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/roadmap', icon: FiGitBranch, label: 'Roadmap' },
     { path: '/costs', icon: FiPieChart, label: 'Costs' },
     { path: '/updates', icon: FiFileText, label: 'Weekly Update' },
+  ];
+
+  const growthNav = [
+    { path: '/status-manage', icon: FiActivity, label: 'Status' },
+    { path: '/waitlists', icon: FiFlag, label: 'Waitlists' },
+    { path: '/support', icon: FiInbox, label: 'Support' },
+    { path: '/affiliates', icon: FiGift, label: 'Affiliates' },
+    { path: '/content', icon: FiCalendar, label: 'Content' },
+    { path: '/experiments', icon: FiTarget, label: 'Experiments' },
+    { path: '/health', icon: FiHeart, label: 'Health' },
+  ];
+
+  const opsNav = [
+    { path: '/domains', icon: FiGlobe, label: 'Domains' },
+    { path: '/legal', icon: FiShield, label: 'Legal' },
   ];
 
   const systemNav = [
@@ -130,6 +156,8 @@ const Sidebar = ({ isOpen, onClose }) => {
           <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto">
             {renderGroup('Overview', primaryNav)}
             {renderGroup('Build', studioNav)}
+            {renderGroup('Growth', growthNav)}
+            {renderGroup('Ops', opsNav)}
             {renderGroup('System', systemNav)}
           </nav>
 
