@@ -19,7 +19,8 @@ const {
   FiArrowLeft, FiEdit3, FiGithub, FiGlobe, FiDollarSign, FiUsers, 
   FiTrendingUp, FiCode, FiImage, FiFileText, FiExternalLink, FiPlus, 
   FiTrash2, FiSave, FiX, FiLoader, FiMessageSquare, FiTarget, 
-  FiPackage, FiHardDrive, FiZap, FiMaximize2, FiCheck, FiAlertTriangle
+  FiPackage, FiHardDrive, FiZap, FiMaximize2, FiCheck, FiAlertTriangle,
+  FiList
 } = FiIcons;
 
 const AppDetails = () => {
@@ -797,12 +798,16 @@ const AppDetails = () => {
             <p className="page-subtitle !mt-1">{appData?.description}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <span className={`badge ${
             appData?.status === 'Active' ? 'badge-success' : 'badge-warning'
           }`}>
             {appData?.status}
           </span>
+          <Link to={`/waitlists?app=${id}`} className="btn-secondary">
+            <SafeIcon icon={FiList} className="w-4 h-4" />
+            <span>Waitlist</span>
+          </Link>
           {appData?.landing_page && (
             <a
               href={appData.landing_page}

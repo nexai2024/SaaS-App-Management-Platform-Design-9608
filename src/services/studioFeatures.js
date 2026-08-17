@@ -320,6 +320,23 @@ export function buildStatusSnapshot(apps = [], monitoringByApp = {}) {
 // —— Waitlists ——
 export const waitlistsStore = {
   ...makeStore(BASE_KEYS.waitlists, 'waitlists'),
+  save(item) {
+    const base = makeStore(BASE_KEYS.waitlists, 'waitlists');
+    return base.save({
+      status: 'live',
+      cta: 'Join waitlist',
+      show_count: 1,
+      success_message: "You're on the list. Share your link to move up the queue.",
+      ...item,
+      // NCB TINYINT — persist as 0/1
+      show_count:
+        item.show_count === false ||
+        item.show_count === 0 ||
+        item.show_count === '0'
+          ? 0
+          : 1,
+    });
+  },
   getBySlug(slug) {
     return this.list().find((w) => w.slug === slug || String(w.app_id) === String(slug));
   },
